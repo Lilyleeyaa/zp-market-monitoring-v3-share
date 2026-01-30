@@ -1,65 +1,3 @@
-# ZP Market Monitoring v2 (NLP)
-
-AI 기반 의료/제약 뉴스 모니터링 시스템
-
-## 🎯 주요 성과
-
-- **중복 제거 정확도**: 8개 → 2개 (75% 개선)
-- **AI 추천 성능**: Top-5 Reward **0.6** (3/5개 정확)
-- **데이터 품질**: KoNLPy 형태소 분석 기반 중복 제거
-
-## ✨ 핵심 기능
-
-### 3. global 🌍 Multilingual AI Translation
-- **Gemini API (High Quality)**: 의학 전문 번역 프롬프트 적용 (예: "건기식" → "Health Functional Food")
-- **Prompt Engineering**: 'Konglish' 자동 보정 (예: "프리필드" → "Pre-filled")
-- **Hybrid System**: Gemini Quota 초과 시 Google Translate 자동 전환 (3중 안전장치)
-- **성능 최적화**: 
-  - **Batch Processing**: 기사 제목+요약+키워드 일괄 번역 (속도 3배 ↑)
-  - **Caching**: 한 번 번역된 내용은 즉시 로딩 (@st.cache_data)
-
-### 4. 📊 스마트 대시보드
-- **AI/VIP 필터**: AI 점수(0.18↑) 또는 중요 키워드 포함 기사만 선별
-- **Dynamic Keywords**: 현재 조회된 기사들의 키워드만 필터에 노출
-- **💬 KakaoTalk Update**: 
-  - AI가 엄선한 핵심 기사만 요약
-  - 국/영문 자동 변환 지원
-  - 원클릭 복사
-
-## 🚀 빠른 시작
-
-### 설치
-
-```bash
-pip install -r requirements.txt
-```
-
-### 실행 (로컬)
-
-```bash
-# 대시보드 실행
-run_dashboard.bat
-```
-
-*브라우저에서 http://localhost:8501 자동 오픈*
-
----
-
-## 📋 주간 워크플로우 (Data Pipeline)
-
-### 1. 뉴스 데이터 수집 (Crawling)
-
-```python
-%run scripts/crawl_naver_news_api.py
-```
-
-**결과**: `articles_naver_api_YYYYMMDD.csv` (네이버 뉴스 API 기반 수집)
-
-### 2. 라벨링 데이터 준비 (Preprocessing)
-
-```python
-%run scripts/prepare_labeling.py
-```
 # 🏥 ZP Market Monitoring v2 (NLP)
 
 **Last Updated:** 2026-01-30  
@@ -98,11 +36,11 @@ Top 20 Selection:
 ```
 
 **Why this approach?**
-- AI model (AUC ~0.55) has limited predictive power for business-specific relevance
+- AI model (AUC ~0.52) has limited predictive power for business-specific relevance
 - Rule-based category scoring provides stable, consistent results
 - Category balancing prevents single-category dominance
 
-## � Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -127,32 +65,99 @@ Or use the batch file (Windows):
 run_dashboard.bat
 ```
 
-## � Project Structure
+## 📁 Project Structure
 
 ```
 ├── dashboard_app.py              # Main Streamlit dashboard
 ├── scripts/
+│   ├── crawl_naver_news_api.py   # News crawler (7-day lookback)
+│   ├── rank_articles.py          # Hybrid ranking engine
+│   ├── train_lgbm_model.py       # AI model training (optional)
+│   ├── merge_labels.py           # Label management (optional)
+│   └── nlp_utils.py              # NLP utilities
+├── data/
+│   ├── articles_raw/             # Crawled & ranked articles
+│   └── labels/                   # Training labels (optional)
+├── model/                        # Pre-trained models
+│   ├── lgbm_model.txt            # LightGBM model
+│   ├── pca.pkl                   # PCA (384→64 dims)
+│   └── scaler.pkl                # Feature scaler
+└── requirements.txt              # Dependencies
+```
 
-### AI 모델 성능
+## 🔄 Weekly Workflow
 
-| 메트릭 | Neural Net (v1) | LightGBM (v2) | 개선 |
-|--------|-----------------|---------------|------|
-| Top-5 Reward | 0.20 | **0.60** | **3배 ↑** |
-| AUC | ~0.40 | **0.61** | 50% ↑ |
-| Accuracy | ~0.60 | **0.76** | 26% ↑ |
+### Standard Weekly Update (No Labeling Required)
 
-## 🎓 v1 대비 개선사항
+```bash
+# 1. Crawl latest news (past 7 days)
+python scripts/crawl_naver_news_api.py
 
-1. **중복 제거**: 단순 문자열 비교 → KoNLPy 형태소 기반
-2. **AI 모델**: 3-layer MLP → LightGBM (소규모 데이터 최적화)
-3. **데이터 분할**: 시간순 70/30 → Stratified split (공정한 평가)
-4. **자동화**: 파일명 하드코딩 → 날짜 자동 감지
-5. **실행 편의성**: 수동 명령어 → `.bat` 파일 원클릭
+# 2. Rank articles (using existing model)
+python scripts/rank_articles.py
 
-## 📝 라이선스
+# 3. Push to GitHub (auto-deploys to Streamlit Cloud)
+git add data/
+git commit -m "Weekly update"
+git push
+```
 
-내부 사용 전용
+**Time Required:** ~5 minutes  
+**Frequency:** Every Friday morning
 
-## 👥 문의
+## 📊 Performance Metrics
 
-ZP Market Intelligence Team
+### Current Model Performance (2026-01-30)
+- **Test AUC**: 0.52 (near random baseline)
+- **Test Accuracy**: 81%
+- **Top-5 Reward**: 0.40 (2/5 correct)
+- **Training Data**: 542 articles (Nov 2025 - Jan 2026)
+
+### System Value
+Despite limited AI performance, the system provides significant value:
+- ✅ **10x time savings**: 500+ articles → 20 curated articles
+- ✅ **Automated deduplication**: Removes redundant news
+- ✅ **Category organization**: Structured by business relevance
+- ✅ **Multi-language access**: Instant English translation
+- ✅ **Team collaboration**: Shareable dashboard link
+
+**Why low AI performance?**
+- News articles require domain knowledge not present in text alone
+- Business relevance depends on internal context (competitors, ongoing projects)
+- Weekly trend changes make historical patterns less predictive
+
+**Solution:** Rely primarily on rule-based category scoring (70%) with AI as minor adjustment (30%)
+
+## 🎯 Key Technologies
+
+- **NLP**: Sentence Transformers (paraphrase-multilingual-mpnet-base-v2)
+- **ML**: LightGBM, PCA (384→64 dims), Scikit-learn
+- **Web**: Streamlit
+- **Translation**: Gemini 2.0 Flash API, Google Translate (fallback)
+- **Crawling**: Naver News Search API
+
+## 🚀 Deployment
+
+### Streamlit Cloud (Recommended)
+
+1. **Push to GitHub** (Private repository)
+2. **Connect Streamlit Cloud**: streamlit.io/cloud
+3. **Deploy**: Select repository → Auto-deploy
+4. **Share link**: Only dashboard visible, code remains private
+
+### Local Deployment
+
+```bash
+streamlit run dashboard_app.py
+```
+
+Access at: `http://localhost:8501`
+
+## 📝 License
+
+Internal use only - ZP Therapeutics
+
+## � Author
+
+Business Development Team  
+ZP Therapeutics Korea
