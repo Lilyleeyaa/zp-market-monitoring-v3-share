@@ -699,8 +699,7 @@ with st.sidebar:
     st.subheader("💬 Kakao Update")
     if st.button("📝 Create Summary"):
         with st.spinner("Selecting best articles and formatting..."):
-            # 1. Prepare Base Data (Use original DF to ignore current filters for broad selection, or use filtered_df?)
-            # Let's use 'df' (full data) but apply date range, to get the best of the week regardless of current view
+            # 1. Prepare Base Data
             mask_kakao = (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
             k_df = df[mask_kakao].copy()
             
@@ -711,58 +710,60 @@ with st.sidebar:
             
             k_df = k_df[~k_df['title'].apply(has_competitor)]
             
-            # 2.5 Apply AI Filtering (Strict Quality Control)
-            # Only keep articles that meet the dashboard's "AI Only" criteria
-            if 'lgbm_score' in k_df.columns:
-                VIP_KEYWORDS = [
-                    'DKSH', 'GSK', 'MSD', '공동판매', '노바티스', '노보노디스크',
-                    '라미실', '로슈', '릴리', '블루엠텍', '사노피', '암젠', '오가논',
-                    '위고비', '쥴릭', '지오영', '코프로모션', '특허만료', '한독', '화이자',
-                    '메나리니'
-                ]
-                
-                # A. High Score Articles
-                high_score_df = k_df[k_df['lgbm_score'] >= 0.18]
-                
-                # B. VIP Articles (Lower threshold safety net)
-                vip_pattern = '|'.join(VIP_KEYWORDS)
-                vip_mask = k_df['title'].str.contains(vip_pattern, case=False, na=False) | \
-                           k_df['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
-                vip_df = k_df[vip_mask & (k_df['lgbm_score'] >= 0.01)]
-                
-                # Combine
-                k_df = pd.concat([high_score_df, vip_df]).drop_duplicates(subset=['url'])
+            # 3. Use SAME category-balanced selection as dashboard
+            # Sort by final_score (category + AI hybrid)
+            sort_col = 'final_score' if 'final_score' in k_df.columns else 'published_date'
+            k_df_sorted = k_df.sort_values(sort_col, ascending=False)
             
-            # 3. Keyword-based Filtering for Kakao Summary
+            # 4. Category-balanced selection (same as dashboard)
+            balanced_selection = []
+            categories = k_df['category'].unique()
+            
+            # Major categories: Top 3 each
+            for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
+                if cat in categories:
+                    cat_articles = k_df_sorted[k_df_sorted['category'] == cat].head(3)
+                    balanced_selection.append(cat_articles)
+            
+            # Other categories: Top 2 each
+            for cat in categories:
+                if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
+                    cat_articles = k_df_sorted[k_df_sorted['category'] == cat].head(2)
+                    balanced_selection.append(cat_articles)
+            
+            # Combine and get top 15 for KakaoTalk
+            if balanced_selection:
+                k_df = pd.concat(balanced_selection, ignore_index=True)
+                k_df = k_df.drop_duplicates(subset=['url'])
+                k_df = k_df.sort_values(sort_col, ascending=False).head(15)
+            else:
+                k_df = k_df_sorted.head(15)
+            
+            # 5. Split into Distribution and Pharma Industry
+            # Distribution: Distribution category + Supply Issues
             NEGATIVE_KEYWORDS = ["과징금", "행정처분", "적발", "위반", "검찰", "소송", "불만", "매각", "철수"]
             
-            # 4. Distribution Section: Only "의약품유통" keyword + Zuellig Positive + Supply Issues
             def is_distribution_article(row):
-                text = str(row['title']) + " " + str(row.get('summary', ''))
-                keywords = str(row.get('keywords', ''))
                 category = row.get('category', '')
+                text = str(row['title']) + " " + str(row.get('summary', ''))
                 
-                # Check if "의약품유통" keyword
-                if "의약품유통" in keywords or "의약품유통" in text:
+                # Distribution category
+                if category == 'Distribution':
                     return True
                 
-                # Check if Supply Issues category
+                # Supply Issues
                 if category == 'Supply Issues':
                     return True
                 
-                # Check if Zuellig Positive (has Zuellig but no negative keywords)
-                if "쥴릭" in text or "Zuellig" in text or category == 'Zuellig Specific':
+                # Zuellig Positive (no negative keywords)
+                if category == 'Zuellig':
                     if not any(neg in text for neg in NEGATIVE_KEYWORDS):
                         return True
                 
                 return False
             
-            # 5. Split articles into Distribution and Pharma Industry
-            # Sort Key Check (AI Score fallback)
-            sort_col = 'final_score' if 'final_score' in k_df.columns else 'published_date'
-            
-            dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].sort_values(sort_col, ascending=False).head(5)
-            ind_df = k_df[~k_df.apply(is_distribution_article, axis=1)].sort_values(sort_col, ascending=False).head(10)
+            dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].head(5)
+            ind_df = k_df[~k_df.apply(is_distribution_article, axis=1)].head(10)
             
             # 5. Format Output
             header_dist = "📦 [의약품 유통 (Distribution)]"
