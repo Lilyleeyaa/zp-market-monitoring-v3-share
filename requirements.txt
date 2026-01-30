@@ -5,7 +5,8 @@ beautifulsoup4
 sentence-transformers
 lightgbm
 scikit-learn
-streamlit
+streamlit>=1.28.0
 plotly
 konlpy
 deep-translator
+altair<5
