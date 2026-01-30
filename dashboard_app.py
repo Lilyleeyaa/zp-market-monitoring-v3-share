@@ -699,9 +699,8 @@ with st.sidebar:
     st.subheader("💬 Kakao Update")
     if st.button("📝 Create Summary"):
         with st.spinner("Selecting best articles and formatting..."):
-            # 1. Prepare Base Data
-            mask_kakao = (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
-            k_df = df[mask_kakao].copy()
+            # 1. Use SAME filtered data as dashboard (respects AI Only filter)
+            k_df = filtered_df.copy()
             
             # 2. Competitor Exclusion
             COMPETITORS = ["지오영", "DKSH", "블루엠텍", "바로팜", "용마", "쉥커", "DHL", "LX판토스", "CJ"]
@@ -710,37 +709,11 @@ with st.sidebar:
             
             k_df = k_df[~k_df['title'].apply(has_competitor)]
             
-            # 3. Use SAME category-balanced selection as dashboard
-            # Sort by final_score (category + AI hybrid)
+            # 3. Use top 20 from dashboard (already category-balanced)
             sort_col = 'final_score' if 'final_score' in k_df.columns else 'published_date'
-            k_df_sorted = k_df.sort_values(sort_col, ascending=False)
+            k_df = k_df.sort_values(sort_col, ascending=False).head(20)
             
-            # 4. Category-balanced selection (same as dashboard)
-            balanced_selection = []
-            categories = k_df['category'].unique()
-            
-            # Major categories: Top 3 each
-            for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
-                if cat in categories:
-                    cat_articles = k_df_sorted[k_df_sorted['category'] == cat].head(3)
-                    balanced_selection.append(cat_articles)
-            
-            # Other categories: Top 2 each
-            for cat in categories:
-                if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
-                    cat_articles = k_df_sorted[k_df_sorted['category'] == cat].head(2)
-                    balanced_selection.append(cat_articles)
-            
-            # Combine and get top 15 for KakaoTalk
-            if balanced_selection:
-                k_df = pd.concat(balanced_selection, ignore_index=True)
-                k_df = k_df.drop_duplicates(subset=['url'])
-                k_df = k_df.sort_values(sort_col, ascending=False).head(15)
-            else:
-                k_df = k_df_sorted.head(15)
-            
-            # 5. Split into Distribution and Pharma Industry
-            # Distribution: Distribution category + Supply Issues
+            # 4. Split into Distribution and Pharma Industry
             NEGATIVE_KEYWORDS = ["과징금", "행정처분", "적발", "위반", "검찰", "소송", "불만", "매각", "철수"]
             
             def is_distribution_article(row):
@@ -762,7 +735,7 @@ with st.sidebar:
                 
                 return False
             
-            dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].head(5)
+            dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].head(10)
             ind_df = k_df[~k_df.apply(is_distribution_article, axis=1)].head(10)
             
             # 5. Format Output
