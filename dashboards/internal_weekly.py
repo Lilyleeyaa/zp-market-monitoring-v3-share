@@ -368,6 +368,7 @@ st.markdown("""
         border: none;
     }
 </style>
+""", unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
 
