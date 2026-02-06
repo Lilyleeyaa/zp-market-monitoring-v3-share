@@ -405,16 +405,22 @@ if show_ai_only and 'lgbm_score' in df.columns:
     ]
     df_temp = df[mask]
     
-    ai_candidates = df_temp[df_temp['lgbm_score'] >= 0.18]
-    top_ai = ai_candidates.nlargest(20, 'lgbm_score')
+    score_col = 'final_score' if 'final_score' in df_temp.columns else 'lgbm_score'
     
+    # 1. AI Top 20
+    ai_threshold = 0.18
+    ai_candidates = df_temp[df_temp[score_col] >= ai_threshold]
+    top_ai = ai_candidates.nlargest(20, score_col)
+    
+    # 2. VIP Top 5 (Safety net)
     vip_pattern = '|'.join(VIP_KEYWORDS)
     has_vip = df_temp[
         df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
         df_temp['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
     ]
-    vip_candidates = has_vip[has_vip['lgbm_score'] >= 0.01]
-    top_vip = vip_candidates.nlargest(5, 'lgbm_score')
+    vip_threshold = 0.01
+    vip_candidates = has_vip[has_vip[score_col] >= vip_threshold]
+    top_vip = vip_candidates.nlargest(5, score_col)
     
     filtered_df = pd.concat([top_ai, top_vip]).drop_duplicates(subset=['url'])
 else:
