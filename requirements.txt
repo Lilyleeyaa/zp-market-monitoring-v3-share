@@ -11,3 +11,5 @@ konlpy
 deep-translator
 altair<5
 pyyaml
+
+joblib
