@@ -110,6 +110,57 @@ KEYWORD_MAPPING = {
     "공급중단": "Supply Disruption", "공급부족": "Supply Shortage", "품절": "Out of Stock", "품귀": "Shortage",
 }
 
+# ====================
+# Filter Logic Definitions (Global)
+# ====================
+INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
+
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
+    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", 
+    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
+    "주가", "주식", "목표주가", "특징주", "급등",
+    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
+    "채용", "신입사원", "공채"
+]
+
+GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴"]
+PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단"]
+
+def is_noise_article(row):
+    text = str(row['title']) + " " + str(row.get('summary', ''))
+    
+    # 1. Check Explicit Exclusions
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text:
+            return True
+            
+    # 2. Homonym Check: "제약" (Constraint vs Pharma)
+    if "제약" in text:
+        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
+            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
+                return True
+
+    # 3. Generic Keyword Context Check
+    row_kws = str(row.get('keywords', ''))
+    if row_kws:
+        matched_gen = [gk for gk in GENERIC_KEYWORDS if gk in row_kws]
+        if matched_gen:
+             if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
+                 return True
+    return False
+
+def has_internal_keyword(row_keywords):
+    if pd.isna(row_keywords) or row_keywords == '':
+        return False
+    row_k_list = str(row_keywords).split(',') 
+    for k in row_k_list:
+        if k.strip() in INTERNAL_KEYWORDS:
+            return True
+    return False
+
 GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
@@ -218,6 +269,16 @@ def load_weekly_data():
         if 'keywords' not in df.columns:
             df['keywords'] = ''
             
+        # --- Apply Cached Filters Here (Performance Optimization) ---
+        # 1. Internal Keyword Strict Filter
+        df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
+        df = df[df['has_internal_kw']]
+        
+        # 2. Noise Filter
+        if not df.empty:
+            df['is_noise'] = df.apply(is_noise_article, axis=1)
+            df = df[~df['is_noise']]
+            
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
         return pd.DataFrame(), None, str(e)
@@ -236,25 +297,8 @@ if df.empty:
     st.warning("No data found. Please run the crawler first.")
     st.stop()
 
-# ====================
-# Internal Keyword Strict Filter (User Request)
-# ====================
-# Get defined internal keywords from mapping
-INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
+# Internal Keyword Strict Filter & Noise Filter applied inside load_weekly_data for caching
 
-# Function to check if row has ANY internal keyword
-def has_internal_keyword(row_keywords):
-    if pd.isna(row_keywords) or row_keywords == '':
-        return False
-    row_k_list = str(row_keywords).split(',') 
-    for k in row_k_list:
-        if k.strip() in INTERNAL_KEYWORDS:
-            return True
-    return False
-
-# Filter Dataframe STRICTLY (Before Dashboard Logic)
-df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
-df = df[df['has_internal_kw']]
 
 # ====================
 # Main Layout (V2 Style)
@@ -322,58 +366,8 @@ st.markdown("""
     }
 </style>
 
-# ====================
-# Garbage/Noise Cleanup Logic (User Request)
-# ====================
-EXCLUDED_KEYWORDS = [
-    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
-    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
-    "부동산", "아파트", "전세", "매매", "청약", "건설", 
-    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", # Simple stock news without pharma context
-    "주가", "주식", "목표주가", "특징주", "급등", # Stock price specific
-    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예",
-    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
-    "채용", "신입사원", "공채" # Generic HR news
-]
+# Noise Cleanup Logic moved to global scope and applied in cached loader
 
-GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴"]
-PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단"]
-
-def is_noise_article(row):
-    text = str(row['title']) + " " + str(row.get('summary', ''))
-    
-    # 1. Check Explicit Exclusions
-    for exc in EXCLUDED_KEYWORDS:
-        if exc in text:
-            return True
-            
-    # 2. Homonym Check: "제약" (Constraint vs Pharma)
-    # If "제약" is present but NO other pharma keywords, it might be "restriction"
-    if "제약" in text:
-        # Check if it's likely "Constraint"
-        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
-            # Confirm it's NOT pharma by checking for other positive signals
-            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
-                return True
-
-    # 3. Generic Keyword Context Check
-    # If the article matches ONLY generic keywords (e.g. Partnership) without any Pharma context
-    # It is likely a partnership in another industry (e.g. Naver delivery partnership)
-    row_kws = str(row.get('keywords', ''))
-    
-    # Check if matched keywords are ONLY generic ones
-    if row_kws:
-        matched_gen = [gk for gk in GENERIC_KEYWORDS if gk in row_kws]
-        # If we have generic matches, check if we have ANY pharma context in text
-        if matched_gen:
-             if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
-                 return True
-
-    return False
-
-# Apply Noise Filter
-df['is_noise'] = df.apply(is_noise_article, axis=1)
-df = df[~df['is_noise']]
 
 
 # Top Control Bar (Language & Filters)
@@ -531,7 +525,7 @@ else:
                 title, summary_text, keywords_trans = translate_article_batch(title, summary_text, keywords)
                 keywords = keywords_trans
             
-            st.markdown(f"""
+            st.markdown(f'''
             <div class="article-card">
                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{row['url']}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
@@ -541,7 +535,7 @@ else:
                     {summary_text}
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
 
 # --- KakaoTalk Summary Generator (Sidebar) ---
 with st.sidebar:
