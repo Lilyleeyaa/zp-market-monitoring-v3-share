@@ -60,6 +60,7 @@ st.markdown("Automated news monitoring & analysis system")
 # 인증 (내부 전용)
 email, access_level = authenticate(mode='weekly')
 
+if access_level != 'internal':
     st.error("❌ 이 대시보드는 내부 사용자만 접근 가능합니다.")
     st.stop()
     
