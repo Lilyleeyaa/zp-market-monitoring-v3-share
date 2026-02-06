@@ -84,60 +84,71 @@ def rank_articles():
         
         # Step 4: Load model & scaler
         print("\n[Step 4/6] Loading model & scaler...")
-        model = lgb.Booster(model_file=MODEL_PATH)
-        with open(SCALER_PATH, 'rb') as f:
-            scaler = pickle.load(f)
-        print("[OK] Model & scaler loaded")
+        try:
+            model = lgb.Booster(model_file=MODEL_PATH)
+            with open(SCALER_PATH, 'rb') as f:
+                scaler = pickle.load(f)
+            print("[OK] Model & scaler loaded")
+            use_model = True
+        except Exception as e:
+            print(f"[WARNING] Could not load model/scaler: {str(e)}")
+            print("[INFO] Falling back to score_ag ranking only")
+            use_model = False
         
-        # Step 5: Feature extraction
-        print("\n[Step 5/6] Extracting features...")
-        print("  - Loading SentenceTransformer...")
-        sys.stdout.flush()
-        model_st = SentenceTransformer('all-MiniLM-L6-v2')
-        
-        print(f"  - Encoding {len(df)} articles...")
-        sys.stdout.flush()
-        text_features = model_st.encode(
-            (df['title'] + " " + df['summary'].fillna('')).tolist(),
-            show_progress_bar=True
-        )
-        
-        # PCA: Encode 384 -> 64 dimensions (Load trained PCA)
-        PCA_PATH = os.path.join(MODEL_DIR, "pca.pkl")
-        if not os.path.exists(PCA_PATH):
-            print(f"[ERROR] PCA model not found at {PCA_PATH}")
-            print("Please retrain the model first: python scripts/train_lgbm_model.py")
-            sys.exit(1)
+        # Step 5: Feature extraction (skip if model not available)
+        if use_model:
+            print("\n[Step 5/6] Extracting features...")
+            print("  - Loading SentenceTransformer...")
+            sys.stdout.flush()
+            model_st = SentenceTransformer('all-MiniLM-L6-v2')
             
-        with open(PCA_PATH, 'rb') as f:
-            pca = pickle.load(f)
-        
-        print("  - Reducing dimensions (PCA 384 -> 64)...")
-        text_features = pca.transform(text_features)
-        
-        print("  - Extracting metadata features...")
-        df['score_ag'] = pd.to_numeric(df['score_ag'], errors='coerce').fillna(0)
-        
-        # Category encoding (one-hot) - must match training
-        category_dummies = pd.get_dummies(df['category'], prefix='cat')
-        
-        # Removed days_old to reduce temporal bias
-        
-        meta_features = pd.concat([
-            df[['score_ag']],
-            category_dummies
-        ], axis=1).fillna(0).values
-        
-        X = np.hstack([text_features, meta_features])
-        X_scaled = scaler.transform(X)
-        print("[OK] Feature extraction complete")
-        
-        # Step 6: Prediction
-        print("\n[Step 6/6] Running LightGBM prediction...")
-        scores = model.predict(X_scaled)
-        print(f"[OK] Predicted scores for {len(scores)} articles")
-        
-        df['lgbm_score'] = scores
+            print(f"  - Encoding {len(df)} articles...")
+            sys.stdout.flush()
+            text_features = model_st.encode(
+                (df['title'] + " " + df['summary'].fillna('')).tolist(),
+                show_progress_bar=True
+            )
+            
+            # PCA: Encode 384 -> 64 dimensions (Load trained PCA)
+            PCA_PATH = os.path.join(MODEL_DIR, "pca.pkl")
+            if not os.path.exists(PCA_PATH):
+                print(f"[ERROR] PCA model not found at {PCA_PATH}")
+                print("Please retrain the model first: python scripts/train_lgbm_model.py")
+                sys.exit(1)
+                
+            with open(PCA_PATH, 'rb') as f:
+                pca = pickle.load(f)
+            
+            print("  - Reducing dimensions (PCA 384 -> 64)...")
+            text_features = pca.transform(text_features)
+            
+            print("  - Extracting metadata features...")
+            df['score_ag'] = pd.to_numeric(df['score_ag'], errors='coerce').fillna(0)
+            
+            # Category encoding (one-hot) - must match training
+            category_dummies = pd.get_dummies(df['category'], prefix='cat')
+            
+            # Removed days_old to reduce temporal bias
+            
+            meta_features = pd.concat([
+                df[['score_ag']],
+                category_dummies
+            ], axis=1).fillna(0).values
+            
+            X = np.hstack([text_features, meta_features])
+            X_scaled = scaler.transform(X)
+            print("[OK] Feature extraction complete")
+            
+            # Step 6: Prediction
+            print("\n[Step 6/6] Running LightGBM prediction...")
+            scores = model.predict(X_scaled)
+            print(f"[OK] Predicted scores for {len(scores)} articles")
+            df['lgbm_score'] = scores
+        else:
+            print("\n[Step 5/6] Skipping feature extraction (no model)")
+            print("\n[Step 6/6] Using score_ag only for ranking...")
+            df['score_ag'] = pd.to_numeric(df['score_ag'], errors='coerce').fillna(0)
+            df['lgbm_score'] = 0  # Placeholder
         
         # Load labels if available
         if os.path.exists(LABELS_FILE):
@@ -170,20 +181,19 @@ def rank_articles():
         # Normalize scores
         print("  - Calculating final scores...")
         
-        # Use absolute scores instead of normalization to avoid time bias
-        # final_score = weighted combination of LGBM prediction and original score
-        # Adjusted: Model performance is low (AUC 0.55), so rely more on rules
-        LGBM_WEIGHT = 0.3      # Reduced from 0.7 (low confidence in model)
-        SCOREAG_WEIGHT = 0.7    # Increased from 0.3 (rely on rules)
-        
-        # Normalize each score to 0-1 range separately (not relative to dataset)
-        # For score_ag: it's already in a reasonable range, just clip
-        df['score_ag_norm'] = df['score_ag'].clip(0, 10) / 10  # Assume max 10
-        
-        # For lgbm_score: it's already a probability (0-1), use as-is
-        df['lgbm_score_norm'] = df['lgbm_score'].clip(0, 1)
-        
-        df['final_score'] = LGBM_WEIGHT * df['lgbm_score_norm'] + SCOREAG_WEIGHT * df['score_ag_norm']
+        if use_model:
+            # Use weighted combination of LGBM prediction and original score
+            LGBM_WEIGHT = 0.3      # Reduced from 0.7 (low confidence in model)
+            SCOREAG_WEIGHT = 0.7    # Increased from 0.3 (rely on rules)
+            
+            # Normalize each score to 0-1 range separately
+            df['score_ag_norm'] = df['score_ag'].clip(0, 10) / 10  # Assume max 10
+            df['lgbm_score_norm'] = df['lgbm_score'].clip(0, 1)
+            
+            df['final_score'] = LGBM_WEIGHT * df['lgbm_score_norm'] + SCOREAG_WEIGHT * df['score_ag_norm']
+        else:
+            # Use score_ag only
+            df['final_score'] = df['score_ag'].clip(0, 10) / 10
         
         # Category-balanced selection for top results
         print("  - Applying category balancing...")
