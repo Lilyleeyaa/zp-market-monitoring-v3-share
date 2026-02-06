@@ -321,7 +321,59 @@ st.markdown("""
         border: none;
     }
 </style>
-""", unsafe_allow_html=True)
+
+# ====================
+# Garbage/Noise Cleanup Logic (User Request)
+# ====================
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
+    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", 
+    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", # Simple stock news without pharma context
+    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
+    "채용", "신입사원", "공채" # Generic HR news
+]
+
+GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
+PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단"]
+
+def is_noise_article(row):
+    text = str(row['title']) + " " + str(row.get('summary', ''))
+    
+    # 1. Check Explicit Exclusions
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text:
+            return True
+            
+    # 2. Homonym Check: "제약" (Constraint vs Pharma)
+    # If "제약" is present but NO other pharma keywords, it might be "restriction"
+    if "제약" in text:
+        # Check if it's likely "Constraint"
+        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
+            # Confirm it's NOT pharma by checking for other positive signals
+            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
+                return True
+
+    # 3. Generic Keyword Context Check
+    # If the article matches ONLY generic keywords (e.g. Partnership) without any Pharma context
+    # It is likely a partnership in another industry (e.g. Naver delivery partnership)
+    row_kws = str(row.get('keywords', ''))
+    
+    # Check if matched keywords are ONLY generic ones
+    if row_kws:
+        matched_gen = [gk for gk in GENERIC_KEYWORDS if gk in row_kws]
+        # If we have generic matches, check if we have ANY pharma context in text
+        if matched_gen:
+             if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
+                 return True
+
+    return False
+
+# Apply Noise Filter
+df['is_noise'] = df.apply(is_noise_article, axis=1)
+df = df[~df['is_noise']]
+
 
 # Top Control Bar (Language & Filters)
 st.markdown("### 🔍 Filters & Settings")
