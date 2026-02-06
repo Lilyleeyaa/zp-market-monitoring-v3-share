@@ -1,12 +1,16 @@
 """
 Rank articles using trained LightGBM model
 """
-import pandas as pd
+# Fix for numpy_core error in pickle
 import numpy as np
+import sys
+# Ensure numpy is properly initialized before pickle
+np.random.seed(42)
+
+import pandas as pd
 import os
 import pickle
 import glob
-import sys
 import lightgbm as lgb
 from sentence_transformers import SentenceTransformer
 
