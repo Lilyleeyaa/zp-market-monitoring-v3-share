@@ -7,10 +7,20 @@ import hashlib
 import os
 
 def load_auth_config():
-    """인증 설정 로드"""
+    """인증 설정 로드 (Secrets 우선, 파일 후순위)"""
+    # 1. Try Streamlit Secrets
+    if "auth" in st.secrets:
+        return st.secrets["auth"]
+        
+    # 2. Try local config.yaml
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    with open(config_path, encoding='utf-8') as f:
-        return yaml.safe_load(f)
+    if os.path.exists(config_path):
+        with open(config_path, encoding='utf-8') as f:
+            return yaml.safe_load(f)
+            
+    # 3. Fail gracefully
+    st.error("Auth configuration not found. Please set secrets or add auth/config.yaml.")
+    st.stop()
 
 def hash_password(password):
     """비밀번호 해싱"""
