@@ -29,20 +29,20 @@ def authenticate(mode='weekly'):
         return st.session_state['email'], st.session_state['access_level']
     
     # 로그인 폼
-    st.title("🔐 로그인")
+    st.title("🔐 Login")
     
     with st.form("login_form"):
-        email = st.text_input("이메일", placeholder="your.email@company.com")
-        password = st.text_input("비밀번호", type="password")
-        submit = st.form_submit_button("로그인")
+        email = st.text_input("Email", placeholder="your.email@company.com")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
         
         if submit:
-            # 비밀번호 확인 (공통 비밀번호)
+            # Password verification (common password)
             if hash_password(password) != config['common_password_hash']:
-                st.error("❌ 비밀번호가 올바르지 않습니다.")
+                st.error("❌ Incorrect password.")
                 st.stop()
             
-            # 이메일 도메인으로 접근 레벨 판단
+            # Determine access level by email domain
             access_level = 'external'  # 기본값
             
             for domain in config['internal_domains']:
@@ -50,20 +50,20 @@ def authenticate(mode='weekly'):
                     access_level = 'internal'
                     break
             
-            # Daily는 내부 전용
+            # Daily is internal only
             if mode == 'daily' and access_level != 'internal':
-                st.error("❌ Daily 버전은 내부 사용자만 접근 가능합니다.")
+                st.error("❌ Daily version is only accessible to internal users.")
                 st.stop()
             
-            # 세션에 저장
+            # Save to session
             st.session_state['authenticated'] = True
             st.session_state['email'] = email
             st.session_state['access_level'] = access_level
             
-            st.success(f"✅ 로그인 성공! ({access_level})")
+            st.success(f"✅ Login successful! ({access_level})")
             st.rerun()
     
-    st.stop()  # 로그인 전까지 대시보드 표시 안 함
+    st.stop()  # Don't show dashboard until logged in
 
 def get_current_user():
     """현재 로그인한 사용자 정보 반환"""
