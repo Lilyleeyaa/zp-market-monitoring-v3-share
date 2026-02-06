@@ -529,18 +529,11 @@ else:
                 title, summary_text, keywords_trans = translate_article_batch(title, summary_text, keywords)
                 keywords = keywords_trans
             
-            # Prepare score for display
-            score_val = row.get('final_score', row.get('lgbm_score', 0))
-            try:
-                score_str = f"{float(score_val):.2f}"
-            except:
-                score_str = str(score_val)
-
             st.markdown(f'''
             <div class="article-card">
                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{row['url']}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666;"> | {date} | ⭐ {score_str} | {keywords}</span>
+                    <span style="color: #666;"> | {date} | {keywords}</span>
                 </div>
                 <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
                     {summary_text}
