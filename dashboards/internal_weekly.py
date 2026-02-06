@@ -29,9 +29,7 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
 
-* {
-    font-family: 'Noto Sans KR', sans-serif !important;
-}
+/* * { font-family: 'Noto Sans KR', sans-serif !important; } (Removed to fix icon fonts) */
 
 html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
     font-family: 'Noto Sans KR', sans-serif !important;
