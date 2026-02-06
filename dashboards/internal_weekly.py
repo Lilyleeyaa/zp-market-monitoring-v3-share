@@ -60,9 +60,11 @@ st.markdown("Automated news monitoring & analysis system")
 # 인증 (내부 전용)
 email, access_level = authenticate(mode='weekly')
 
-if access_level != 'internal':
     st.error("❌ 이 대시보드는 내부 사용자만 접근 가능합니다.")
     st.stop()
+    
+# Add version toast to confirm update
+st.toast("Updated Code Loaded (v3.0.5)", icon="✅")
 
 # ====================
 # Translation Components (V2)
@@ -506,13 +508,13 @@ else:
         category_df = filtered_df[filtered_df['category'] == category_name]
         display_category = translate_text(category_name) if use_english else category_name
         
-        st.markdown(f"""
+        st.markdown(f'''
         <div style="margin-top: 20px; margin-bottom: 15px;">
             <h3 style="font-size: 22px; color: #006666; border-bottom: 2px solid #0ABAB5; padding-bottom: 8px;">
                 {display_category} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
             </h3>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
         
         for _, row in category_df.iterrows():
             title = row['title']
