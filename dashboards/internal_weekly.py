@@ -164,7 +164,16 @@ def has_internal_keyword(row_keywords):
             return True
     return False
 
-GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+# API Key Security: Load from Streamlit Secrets or Environment Variable
+try:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+except:
+    import os
+    GENAI_API_KEY = os.getenv("GENAI_API_KEY", "")
+
+if not GENAI_API_KEY:
+    # Placeholder for local development if secrets not set (Translation will fail gracefully)
+    pass
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
 @st.cache_data(show_spinner=False)
