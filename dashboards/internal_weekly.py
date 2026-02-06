@@ -1,6 +1,6 @@
 """
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
-V2 Design & Filter Logic Restoration
+V2 Design & Filter Logic Restoration (Exact Replica)
 """
 import streamlit as st
 import pandas as pd
@@ -19,7 +19,7 @@ from auth.simple_auth import authenticate
 
 # Page configuration
 st.set_page_config(
-    page_title="ZP Market Monitoring - Internal Weekly",
+    page_title="Health Market Monitor",
     page_icon="🏥",
     layout="wide"
 )
@@ -41,77 +41,23 @@ html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
 
-text-area, input, .stTextArea textarea, .stTextInput input {
+/* Apply to text areas and inputs */
+textarea, input, .stTextArea textarea, .stTextInput input {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
 
+/* Streamlit specific */
 [data-testid="stMarkdownContainer"] {
     font-family: 'Noto Sans KR', sans-serif !important;
-}
-
-/* Global Background & Font */
-.stApp {
-    background-color: #F0F8F8; /* Very Light Teal/Grey */
-}
-
-/* Header/Title */
-h1 {
-    color: #006666 !important; /* Deep Teal */
-}
-
-/* Article Card Styles */
-.article-card {
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    background-color: #ffffff; /* White card */
-    border-left: 5px solid #0ABAB5; /* Tiffany Blue Accent */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-}
-
-.article-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: #008080; /* Teal */
-    text-decoration: none;
-}
-.article-title:hover {
-    color: #0ABAB5; /* Tiffany Blue on Hover */
-    text-decoration: underline;
-}
-
-.article-meta {
-    font-size: 12px;
-    color: #888;
-}
-
-.category-badge {
-    background-color: #E0F2F1; /* Light Teal background */
-    color: #00695C; /* Dark Teal text */
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    margin-left: 5px;
-}
-
-.article-summary {
-    font-size: 14px;
-    color: #444;
-    margin-top: 8px;
-    line-height: 1.6;
-}
-
-/* Button Styles */
-.stButton>button {
-    background-color: #0ABAB5 !important;
-    color: white !important;
-    border: none;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 인증 (내부 전용)
+# Title (V2 Style)
+st.title("🏥 Healthcare Market Monitoring")
+st.markdown("Automated news monitoring & analysis system")
+
+# 인증 (내부 전용 - V3 Requirement)
 email, access_level = authenticate(mode='weekly')
 
 if access_level != 'internal':
@@ -121,7 +67,6 @@ if access_level != 'internal':
 # ====================
 # Translation Components (V2)
 # ====================
-# Custom Glossary for Pre-translation check
 EXTRA_GLOSSARY = {
     "데일리팜": "Daily Pharm",
     "약사공론": "Yaksagongron",
@@ -165,7 +110,6 @@ KEYWORD_MAPPING = {
     "공급중단": "Supply Disruption", "공급부족": "Supply Shortage", "품절": "Out of Stock", "품귀": "Shortage",
 }
 
-# Configure Gemini API
 GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
@@ -209,7 +153,6 @@ def translate_text(text, target='en'):
         except Exception as e:
             break
             
-    # Fallback: Google Translator
     try:
         from deep_translator import GoogleTranslator
         processed_text = text
@@ -224,11 +167,6 @@ def translate_text(text, target='en'):
 
 @st.cache_data(show_spinner=False)
 def translate_article_batch(title, summary, keywords):
-    """
-    Title, Summary, Keywords를 한 번에 번역하지 않고 (복잡도 때문), 개별 번역 호출로 안정성 확보
-    (V2의 배치는 파싱 로직이 불안정할 수 있어 안전하게 개별 호출로 변경하거나 V2 그대로 사용)
-    V2 그대로 사용:
-    """
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
@@ -248,7 +186,7 @@ def translate_article_batch(title, summary, keywords):
     return t_title, t_summary, t_keywords
 
 # ====================
-# Data Loading (V3)
+# Data Loading (V3 Logic with V2 Return Format)
 # ====================
 def get_weekly_date_range():
     kst = pytz.timezone('Asia/Seoul')
@@ -265,12 +203,25 @@ def load_weekly_data():
         if not os.path.exists(base_dir):
             base_dir = "../data/articles_raw"
         
-        ranked_files = sorted(glob.glob(os.path.join(base_dir, "articles_ranked_*.csv")))
-        if not ranked_files:
-            return pd.DataFrame(), {}
+        # Priority 1: Ranked files
+        ranked_files = glob.glob(os.path.join(base_dir, "articles_ranked_*.csv"))
+        # Priority 2: Raw files
+        raw_files = glob.glob(os.path.join(base_dir, "articles_*.csv"))
         
-        latest_file = ranked_files[-1]
-        df = pd.read_csv(latest_file, encoding='utf-8-sig')
+        target_file = None
+        file_type = "None"
+        
+        if ranked_files:
+            target_file = max(ranked_files, key=os.path.getctime)
+            file_type = "AI Ranked"
+        elif raw_files:
+            target_file = max(raw_files, key=os.path.getctime)
+            file_type = "Raw Data"
+            
+        if not target_file:
+            return pd.DataFrame(), None, None
+            
+        df = pd.read_csv(target_file, encoding='utf-8-sig') # UTF-8 SIG for Korean
         
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
@@ -281,32 +232,93 @@ def load_weekly_data():
         if 'keywords' not in df.columns:
             df['keywords'] = ''
             
-        start_date, end_date = get_weekly_date_range()
-        info = {
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d'),
-            'total_articles': len(df),
-            'data_file': os.path.basename(latest_file),
-            'updated_time': datetime.fromtimestamp(os.path.getmtime(latest_file)).strftime('%Y-%m-%d %H:%M:%S')
-        }
-        return df, info
+        return df, os.path.basename(target_file), file_type
     except Exception as e:
-        st.error(f"데이터 로딩 중 오류: {str(e)}")
-        return pd.DataFrame(), {}
+        return pd.DataFrame(), None, str(e)
 
-# ====================
-# Main UI
-# ====================
-st.title("🏥 ZP Market Monitoring - Internal Weekly")
-st.caption(f"로그인: {email} ({access_level})")
+df, filename, file_type = load_weekly_data()
 
-df, data_info = load_weekly_data()
+if filename:
+    if file_type == "AI Ranked":
+         st.toast(f"Loaded: {filename} (AI Ranked)", icon="🤖")
+    else:
+         st.toast(f"Loaded: {filename} (Raw Data)", icon="📂")
+elif file_type and "None" not in str(file_type): 
+    st.error(f"Error loading data: {file_type}")
 
 if df.empty:
-    st.warning("⚠️ 데이터가 없습니다.")
+    st.warning("No data found. Please run the crawler first.")
     st.stop()
 
-# --- V2 Filter Layout (Top Bar) ---
+
+# ====================
+# Main Layout (V2 Style)
+# ====================
+st.markdown("""
+<style>
+    /* Global Background & Font */
+    .stApp {
+        background-color: #F0F8F8; /* Very Light Teal/Grey */
+    }
+    
+    /* Header/Title */
+    h1 {
+        color: #006666 !important; /* Deep Teal */
+    }
+    
+    /* Article Card Styles */
+    .article-card {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        background-color: #ffffff; /* White card */
+        border-left: 5px solid #0ABAB5; /* Tiffany Blue Accent */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    
+    .article-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #008080; /* Teal */
+        text-decoration: none;
+    }
+    .article-title:hover {
+        color: #0ABAB5; /* Tiffany Blue on Hover */
+        text_decoration: underline;
+    }
+    
+    .article-meta {
+        font-size: 12px;
+        color: #888;
+    }
+    
+    .category-badge {
+        background-color: #E0F2F1; /* Light Teal background */
+        color: #00695C; /* Dark Teal text */
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 5px;
+    }
+
+    .article-summary {
+        font-size: 14px;
+        color: #444;
+        margin-top: 8px;
+        line-height: 1.6;
+    }
+    
+    /* Button Styles */
+    .stButton>button {
+        background-color: #0ABAB5 !important;
+        color: white !important;
+        border: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Top Control Bar (Language & Filters)
 st.markdown("### 🔍 Filters & Settings")
 
 f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
@@ -319,11 +331,17 @@ with f_col2:
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
         max_date = df['published_date'].max()
-        date_range = st.date_input("📅 Date Range", [min_date, max_date])
-        if len(date_range) == 2:
+        if min_date == max_date:
+            date_range = [min_date, max_date]
+        else:
+            date_range = st.date_input("📅 Date Range", [min_date, max_date])
+            
+        if isinstance(date_range, list) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
             start_date, end_date = min_date, max_date
+    else:
+        start_date, end_date = None, None
 
 with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
@@ -331,21 +349,18 @@ with f_col3:
     if not selected_categories: 
         selected_categories = all_categories
 
-# Dynamic Keyword Filter Logic
-temp_mask = (
-    (df['published_date'] >= start_date) & 
-    (df['published_date'] <= end_date) &
-    (df['category'].isin(selected_categories))
-)
+# Dynamic Keyword Filter
+temp_mask = pd.Series([True] * len(df))
+if start_date and end_date:
+    temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date) & (df['category'].isin(selected_categories))
+
 df_filtered_step1 = df[temp_mask]
 
 with f_col4:
     available_keywords = []
     if 'keywords' in df_filtered_step1.columns:
-        # 키워드가 쉼표 등으로 구분된 경우 처리가 필요할 수 있으나, V2 로직 단순화
         available_keywords = sorted(df_filtered_step1['keywords'].astype(str).unique().tolist())
     
-    # Translate options
     if use_english:
         keyword_options = [KEYWORD_MAPPING.get(k, k) for k in available_keywords]
         en_to_kr = {KEYWORD_MAPPING.get(k, k): k for k in available_keywords}
@@ -380,13 +395,9 @@ if show_ai_only and 'lgbm_score' in df.columns:
     ]
     df_temp = df[mask]
     
-    # 1. AI Score Filter (Score >= 0.18)
-    # V2 used 0.18, let's stick to it or similar.
-    # Note: V3 rank_articles produces lgbm_score (0-1 approx).
     ai_candidates = df_temp[df_temp['lgbm_score'] >= 0.18]
     top_ai = ai_candidates.nlargest(20, 'lgbm_score')
     
-    # 2. VIP Keyword Filter (Keyword + Score >= 0.01)
     vip_pattern = '|'.join(VIP_KEYWORDS)
     has_vip = df_temp[
         df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
@@ -401,7 +412,6 @@ else:
 
 # Sorting
 if sort_mode == "AI Relevance":
-    # Prefer final_score if exists, else lgbm_score, else score_ag
     if 'final_score' in df.columns:
         filtered_df = filtered_df.sort_values('final_score', ascending=False)
     elif 'lgbm_score' in df.columns:
@@ -450,7 +460,7 @@ else:
             
             if use_english:
                 title, summary_text, keywords_trans = translate_article_batch(title, summary_text, keywords)
-                keywords = keywords_trans # Update processed keywords
+                keywords = keywords_trans
             
             st.markdown(f"""
             <div class="article-card">
@@ -476,11 +486,9 @@ with st.sidebar:
                 return any(comp in str(text) for comp in COMPETITORS)
             k_df = k_df[~k_df['title'].apply(has_competitor)]
             
-            # Sort likely column
             sort_c = 'final_score' if 'final_score' in k_df.columns else ('lgbm_score' if 'lgbm_score' in k_df.columns else 'published_date')
             k_df = k_df.sort_values(sort_c, ascending=False).head(20)
             
-            # Split
             NEGATIVE_KEYWORDS = ["과징금", "행정처분", "적발", "위반", "검찰", "소송", "불만", "매각", "철수"]
             def is_distribution_article(row):
                 category = row.get('category', '')
@@ -505,7 +513,6 @@ with st.sidebar:
 
             kakao_msg = f"[ZP Market Monitoring Weekly Update]\n📅 Period: {start_date} ~ {end_date}\n\n"
             
-            # Helper to format block
             def format_block(df_block):
                 msg = ""
                 if df_block.empty:
