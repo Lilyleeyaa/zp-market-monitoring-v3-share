@@ -110,12 +110,68 @@ def normalize_title(title):
     return normalized.lower()
 
 
+
+# 9. Exclusion Filter (User Request)
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
+    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", 
+    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
+    "주가", "주식", "목표주가", "특징주", "급등",
+    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
+    "채용", "신입사원", "공채"
+]
+
+GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
+PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단"]
+
+def is_noise_article(text):
+    """
+    Check if article is noise/garbage based on keywords and context
+    """
+    if not text: return False
+    
+    # 1. Check Explicit Exclusions
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text:
+            return True
+            
+    # 2. Homonym Check: "제약" (Constraint vs Pharma)
+    if "제약" in text:
+        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
+            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
+                return True
+
+    # 3. Generic Keyword Context Check
+    # (Since we passed concatenated text, we check membership directly)
+    # Check if matched keywords are ONLY generic ones
+    # This logic is slightly different from dashboard (which checks 'keywords' col)
+    # Here we check if the text contains generic keywords BUT NO pharma keywords
+    has_generic = any(gk in text for gk in GENERIC_KEYWORDS)
+    if has_generic:
+         if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
+             return True
+
+    return False
+
 def is_healthcare_related(text):
     """
     Check if article is healthcare-related by looking for domain keywords
+    AND ensure it is NOT noise.
     """
     text_lower = text.lower()
-    return any(keyword in text for keyword in DOMAIN_FILTER_KEYWORDS)
+    
+    # 1. Must have domain keyword
+    has_domain = any(keyword in text for keyword in DOMAIN_FILTER_KEYWORDS)
+    if not has_domain:
+        return False
+        
+    # 2. Must NOT be noise
+    if is_noise_article(text):
+        return False
+        
+    return True
 
 
 def tokenize_title(title):

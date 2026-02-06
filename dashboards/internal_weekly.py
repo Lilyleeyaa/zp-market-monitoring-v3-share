@@ -336,7 +336,7 @@ EXCLUDED_KEYWORDS = [
     "채용", "신입사원", "공채" # Generic HR news
 ]
 
-GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
+GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴"]
 PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단"]
 
 def is_noise_article(row):
