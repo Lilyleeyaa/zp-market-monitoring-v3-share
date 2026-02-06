@@ -85,10 +85,10 @@ def rank_articles():
         # Step 4: Load model & scaler
         print("\n[Step 4/6] Loading model & scaler...")
         try:
+            import joblib
             model = lgb.Booster(model_file=MODEL_PATH)
-            # Use encoding='latin1' and fix_imports for numpy compatibility
-            with open(SCALER_PATH, 'rb') as f:
-                scaler = pickle.load(f, encoding='latin1', fix_imports=True)
+            # Use joblib instead of pickle for better numpy compatibility
+            scaler = joblib.load(SCALER_PATH)
             print("[OK] Model & scaler loaded")
             use_model = True
         except Exception as e:
@@ -116,9 +116,8 @@ def rank_articles():
                 print(f"[ERROR] PCA model not found at {PCA_PATH}")
                 print("Please retrain the model first: python scripts/train_lgbm_model.py")
                 sys.exit(1)
-                
-            with open(PCA_PATH, 'rb') as f:
-                pca = pickle.load(f, encoding='latin1', fix_imports=True)
+            
+            pca = joblib.load(PCA_PATH)
             
             print("  - Reducing dimensions (PCA 384 -> 64)...")
             text_features = pca.transform(text_features)
