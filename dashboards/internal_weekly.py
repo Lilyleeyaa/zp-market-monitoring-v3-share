@@ -149,7 +149,7 @@ with st.sidebar:
         )
     
     # 점수 필터 (AI Score)
-    min_score = st.slider("최소 AI 점수", 0, 100, 50)
+    min_score = st.slider("최소 AI 점수", 0.0, 1.0, 0.2)
 
 # 필터 적용
 filtered_df = df.copy()
@@ -179,21 +179,21 @@ else:
         filtered_df = filtered_df.sort_values('score_ag', ascending=False)
     
     # 기사 카드 표시
+    # 기사 카드 표시
     for idx, row in filtered_df.iterrows():
-        with st.expander(f"**[{row.get('category', 'N/A')}]** {row['title']}", expanded=False):
-            col1, col2 = st.columns([3, 1])
-            
+        with st.container():
+            col1, col2 = st.columns([0.85, 0.15])
             with col1:
-                st.markdown(f"**발행일:** {row.get('published_date', 'N/A')}")
-                st.markdown(f"**출처:** {row.get('site_name', 'N/A')}")
-                st.markdown(f"**요약:** {row.get('summary', 'N/A')}")
+                st.markdown(f"### [{row.get('category', 'N/A')}] {row['title']}")
+                st.caption(f"{row.get('published_date', 'N/A')} | {row.get('site_name', 'N/A')}")
+                st.markdown(f"{row.get('summary', 'N/A')}")
                 st.markdown(f"[🔗 원문 보기]({row['url']})")
             
             with col2:
-                if 'score_ag' in row:
-                    st.metric("AI 점수", f"{row['score_ag']:.0f}")
-                if 'rl_score' in row and row['rl_score']:
-                    st.metric("RL 점수", f"{row['rl_score']:.2f}")
+                score = row.get('score_ag', 0)
+                st.metric("AI 점수", f"{score:.2f}")
+                
+            st.divider()
 
 # ====================
 # 통계
