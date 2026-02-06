@@ -46,8 +46,12 @@ HAS_SUMMARIZER = True  # Fetch full title + og:description (fast with parallel p
 # CONFIGURATION - Naver API Keys
 # ============================================================================
 # Get your API keys from: https://developers.naver.com/
-NAVER_CLIENT_ID = "2jyhekkhkZCQNyh8tVKb"
-NAVER_CLIENT_SECRET = "IMqTRsZRvq"
+# Security: Load from Environment Variables (GitHub Secrets)
+NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
+NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
+
+if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
+   print("[WARNING] Naver API Keys not found in environment variables. Functionality may be limited.")
 
 # Or read from environment variables (recommended for security)
 NAVER_CLIENT_ID = os.getenv('NAVER_CLIENT_ID', NAVER_CLIENT_ID)
