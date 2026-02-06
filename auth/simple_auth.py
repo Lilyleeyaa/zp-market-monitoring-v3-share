@@ -9,7 +9,7 @@ import os
 def load_auth_config():
     """인증 설정 로드"""
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    with open(config_path) as f:
+    with open(config_path, encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 def hash_password(password):
