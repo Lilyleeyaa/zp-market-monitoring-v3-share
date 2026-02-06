@@ -1,6 +1,6 @@
 """
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
-V2 Design & Filter Logic Restoration (Exact Replica)
+V2 Design & Filter Logic Restoration (Exact Replica + Feb 06 Fix)
 """
 import streamlit as st
 import pandas as pd
@@ -57,7 +57,7 @@ textarea, input, .stTextArea textarea, .stTextInput input {
 st.title("🏥 Healthcare Market Monitoring")
 st.markdown("Automated news monitoring & analysis system")
 
-# 인증 (내부 전용 - V3 Requirement)
+# 인증 (내부 전용)
 email, access_level = authenticate(mode='weekly')
 
 if access_level != 'internal':
@@ -186,14 +186,13 @@ def translate_article_batch(title, summary, keywords):
     return t_title, t_summary, t_keywords
 
 # ====================
-# Data Loading (V3 Logic with V2 Return Format)
+# Data Loading (V3 Logic with Strict Filter)
 # ====================
 def get_weekly_date_range():
-    kst = pytz.timezone('Asia/Seoul')
-    today = datetime.now(kst)
-    yesterday = today - timedelta(days=1)
-    last_friday = today - timedelta(days=7)
-    return last_friday, yesterday
+    # 2월 6일 기준 주간 (User Request)
+    target_date = datetime(2026, 2, 6).date()
+    start_date = target_date - timedelta(days=7) # ~7 days range
+    return start_date, target_date
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_weekly_data():
@@ -203,25 +202,12 @@ def load_weekly_data():
         if not os.path.exists(base_dir):
             base_dir = "../data/articles_raw"
         
-        # Priority 1: Ranked files
-        ranked_files = glob.glob(os.path.join(base_dir, "articles_ranked_*.csv"))
-        # Priority 2: Raw files
-        raw_files = glob.glob(os.path.join(base_dir, "articles_*.csv"))
+        ranked_files = sorted(glob.glob(os.path.join(base_dir, "articles_ranked_*.csv")))
+        if not ranked_files:
+            return pd.DataFrame(), {}, "No Files"
         
-        target_file = None
-        file_type = "None"
-        
-        if ranked_files:
-            target_file = max(ranked_files, key=os.path.getctime)
-            file_type = "AI Ranked"
-        elif raw_files:
-            target_file = max(raw_files, key=os.path.getctime)
-            file_type = "Raw Data"
-            
-        if not target_file:
-            return pd.DataFrame(), None, None
-            
-        df = pd.read_csv(target_file, encoding='utf-8-sig') # UTF-8 SIG for Korean
+        latest_file = ranked_files[-1]
+        df = pd.read_csv(latest_file, encoding='utf-8-sig') 
         
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
@@ -232,7 +218,7 @@ def load_weekly_data():
         if 'keywords' not in df.columns:
             df['keywords'] = ''
             
-        return df, os.path.basename(target_file), file_type
+        return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
         return pd.DataFrame(), None, str(e)
 
@@ -250,6 +236,25 @@ if df.empty:
     st.warning("No data found. Please run the crawler first.")
     st.stop()
 
+# ====================
+# Internal Keyword Strict Filter (User Request)
+# ====================
+# Get defined internal keywords from mapping
+INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
+
+# Function to check if row has ANY internal keyword
+def has_internal_keyword(row_keywords):
+    if pd.isna(row_keywords) or row_keywords == '':
+        return False
+    row_k_list = str(row_keywords).split(',') 
+    for k in row_k_list:
+        if k.strip() in INTERNAL_KEYWORDS:
+            return True
+    return False
+
+# Filter Dataframe STRICTLY (Before Dashboard Logic)
+df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
+df = df[df['has_internal_kw']]
 
 # ====================
 # Main Layout (V2 Style)
@@ -328,18 +333,23 @@ with f_col1:
     use_english = (lang_opt == "English")
 
 with f_col2:
+    # Force 2/6 Week as default
+    start_week, end_week = get_weekly_date_range()
+    
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
         max_date = df['published_date'].max()
-        if min_date == max_date:
-            date_range = [min_date, max_date]
-        else:
-            date_range = st.date_input("📅 Date Range", [min_date, max_date])
+        
+        # Override with strict user requirement if available in data
+        default_start = max(min_date, start_week) if min_date else start_week
+        default_end = min(max_date, end_week) if max_date else end_week
+
+        date_range = st.date_input("📅 Date Range", [default_start, default_end])
             
         if isinstance(date_range, list) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
-            start_date, end_date = min_date, max_date
+            start_date, end_date = default_start, default_end
     else:
         start_date, end_date = None, None
 
