@@ -1,0 +1,35 @@
+# auth/config.yaml 파일을 .gitignore에 추가 (비밀번호 보안)
+auth/config.yaml
+
+# 데이터 폴더 (크롤링 결과)
+data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model files (optional - 용량이 크면 추가)
+model/*.pkl
+model/*.txt
+
+# Logs
+*.log

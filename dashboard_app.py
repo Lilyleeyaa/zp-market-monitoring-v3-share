@@ -709,7 +709,7 @@ with st.sidebar:
             
             k_df = k_df[~k_df['title'].apply(has_competitor)]
             
-            # 3. Use top 20 from dashboard (already category-balanced)
+            # 3. Use top 20 from filtered data (after competitor exclusion)
             sort_col = 'final_score' if 'final_score' in k_df.columns else 'published_date'
             k_df = k_df.sort_values(sort_col, ascending=False).head(20)
             

@@ -1,0 +1,14 @@
+# 인증 설정 예시 파일
+# 실제 사용 시 이 파일을 config.yaml로 복사하고 값을 수정하세요
+
+# 공통 비밀번호 해시 (SHA-256)
+# 생성 방법: auth/generate_password.py 실행
+common_password_hash: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"  # 예시: "password"
+
+# 내부 이메일 도메인 (이 도메인으로 끝나는 이메일은 internal 권한)
+internal_domains:
+  - "@lgchem.com"
+  - "@lgls.com"
+  # 추가 도메인을 여기에 입력
+
+# 외부 도메인은 별도 관리 안 함 (내부 아니면 모두 외부)

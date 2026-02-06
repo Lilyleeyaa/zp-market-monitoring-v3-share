@@ -1,163 +1,119 @@
-# 🏥 ZP Market Monitoring v2 (NLP)
+# ZP Market Monitoring v3 Share
 
-**Last Updated:** 2026-01-30  
-AI-powered healthcare news monitoring and analysis system for pharmaceutical business intelligence.
+쥴릭파마코리아의 헬스케어 뉴스 모니터링 시스템 v3
 
-## 🌟 Features
+## 주요 기능
 
-- ✅ **Automated Weekly Crawling**: Collects latest 7 days of pharmaceutical news from Naver
-- ✅ **NLP-based Deduplication**: Semantic similarity using Sentence Transformers
-- ✅ **Category-Balanced Ranking**: Ensures diverse coverage (Distribution, Client, BD, etc.)
-- ✅ **Rule-Based + AI Hybrid**: 70% category scoring + 30% AI prediction
-- ✅ **Interactive Dashboard**: Streamlit web interface with real-time filtering
-- ✅ **Multi-language Support**: Korean/English translation (Gemini API)
-- ✅ **KakaoTalk Summary**: One-click weekly summary generation
+### 1. **3가지 대시보드 버전**
+- **Internal Weekly**: 내부용 (모든 키워드 포함, 경쟁사 정보 포함)
+- **External Weekly**: MNC_BD 공유용 (경쟁사 유통업체/제품 제외)
+- **Daily Validation**: 일일 검증용 (에이전시 키워드 18개)
 
-## 🎯 System Architecture
+### 2. **간소화된 인증 시스템**
+- 이메일 + 공통 비밀번호 방식
+- 이메일 도메인으로 자동 권한 분류 (internal/external)
+- Private GitHub Repository + Streamlit Cloud 배포
 
-### Ranking Algorithm (Current Configuration)
+### 3. **키워드 기반 크롤링**
+- Weekly: 모든 키워드로 주간 크롤링
+- Daily: 에이전시 키워드로 일일 크롤링 (Weekly와 중복 없음)
 
-```python
-Final Score = 0.7 × Category Score + 0.3 × AI Score
+## 프로젝트 구조
 
-Category Scores:
-- Distribution: 6 points
-- Client: 5 points
-- Zuellig: 5 points
-- BD: 4 points
-- Others: 3 points
-
-Top 20 Selection:
-- Distribution: Top 3 articles
-- Client: Top 3 articles
-- BD: Top 3 articles
-- Zuellig: Top 3 articles
-- Other categories: Top 2 each
+```
+ZP Market Monitoring v3 Share/
+├── auth/                      # 인증 시스템
+│   ├── simple_auth.py        # 인증 로직
+│   ├── config.yaml.example   # 설정 템플릿
+│   └── generate_password.py  # 비밀번호 해시 생성기
+├── config/                    # 설정 파일
+│   └── keywords.yaml         # 키워드 설정 (Weekly/Daily 분리)
+├── dashboards/                # Streamlit 대시보드
+│   ├── internal_weekly.py    # 내부용 주간 대시보드
+│   ├── external_weekly.py    # 외부용 주간 대시보드
+│   └── daily_validation.py   # 일일 검증 대시보드
+├── scripts/                   # 데이터 처리 스크립트
+│   ├── config.py             # 설정 로딩 유틸
+│   └── crawl_naver_news_api.py  # 크롤링 스크립트
+├── docs/                      # 문서
+│   ├── implementation_plan.md
+│   ├── keyword_classification.md
+│   └── ...
+├── requirements.txt           # Python 패키지 목록
+└── README.md                  # 이 파일
 ```
 
-**Why this approach?**
-- AI model (AUC ~0.52) has limited predictive power for business-specific relevance
-- Rule-based category scoring provides stable, consistent results
-- Category balancing prevents single-category dominance
+## 설치 및 실행
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.8+
-- Naver API credentials (Client ID & Secret)
-- Gemini API key (for translation)
-
-### Installation
+### 1. 환경 설정
 
 ```bash
+# Python 가상환경 생성 (권장)
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Mac/Linux
+
+# 패키지 설치
 pip install -r requirements.txt
 ```
 
-### Running the Dashboard
+### 2. 인증 설정
 
 ```bash
-streamlit run dashboard_app.py
+# 1. auth/config.yaml 생성
+copy auth\config.yaml.example auth\config.yaml
+
+# 2. 비밀번호 해시 생성
+python auth/generate_password.py
+
+# 3. auth/config.yaml 파일을 편집하여 설정
+# - common_password_hash: 생성된 해시 입력
+# - internal_domains: 내부 이메일 도메인 추가
 ```
 
-Or use the batch file (Windows):
-```bash
-run_dashboard.bat
-```
-
-## 📁 Project Structure
-
-```
-├── dashboard_app.py              # Main Streamlit dashboard
-├── scripts/
-│   ├── crawl_naver_news_api.py   # News crawler (7-day lookback)
-│   ├── rank_articles.py          # Hybrid ranking engine
-│   ├── train_lgbm_model.py       # AI model training (optional)
-│   ├── merge_labels.py           # Label management (optional)
-│   └── nlp_utils.py              # NLP utilities
-├── data/
-│   ├── articles_raw/             # Crawled & ranked articles
-│   └── labels/                   # Training labels (optional)
-├── model/                        # Pre-trained models
-│   ├── lgbm_model.txt            # LightGBM model
-│   ├── pca.pkl                   # PCA (384→64 dims)
-│   └── scaler.pkl                # Feature scaler
-└── requirements.txt              # Dependencies
-```
-
-## 🔄 Weekly Workflow
-
-### Standard Weekly Update (No Labeling Required)
+### 3. 로컬 실행
 
 ```bash
-# 1. Crawl latest news (past 7 days)
-python scripts/crawl_naver_news_api.py
+# 내부용 대시보드
+streamlit run dashboards/internal_weekly.py
 
-# 2. Rank articles (using existing model)
-python scripts/rank_articles.py
+# 외부용 대시보드
+streamlit run dashboards/external_weekly.py
 
-# 3. Push to GitHub (auto-deploys to Streamlit Cloud)
-git add data/
-git commit -m "Weekly update"
-git push
+# Daily 검증 대시보드
+streamlit run dashboards/daily_validation.py
 ```
 
-**Time Required:** ~5 minutes  
-**Frequency:** Every Friday morning
+## 배포 (Streamlit Cloud)
 
-## 📊 Performance Metrics
+1. **GitHub Private Repository 생성**
+2. **코드 Push**
+3. **Streamlit Cloud 배포**
+   - https://streamlit.io/cloud 접속
+   - Private repo 권한 부여
+   - Secrets에 auth/config.yaml 내용 추가
+4. **3개 앱 배포**:
+   - internal-weekly: `dashboards/internal_weekly.py`
+   - external-weekly: `dashboards/external_weekly.py`
+   - daily-validation: `dashboards/daily_validation.py`
 
-### Current Model Performance (2026-01-30)
-- **Test AUC**: 0.52 (near random baseline)
-- **Test Accuracy**: 81%
-- **Top-5 Reward**: 0.40 (2/5 correct)
-- **Training Data**: 542 articles (Nov 2025 - Jan 2026)
+자세한 배포 가이드: `docs/daily_strategy_and_deployment.md`
 
-### System Value
-Despite limited AI performance, the system provides significant value:
-- ✅ **10x time savings**: 500+ articles → 20 curated articles
-- ✅ **Automated deduplication**: Removes redundant news
-- ✅ **Category organization**: Structured by business relevance
-- ✅ **Multi-language access**: Instant English translation
-- ✅ **Team collaboration**: Shareable dashboard link
+## 주요 변경사항 (v2 → v3)
 
-**Why low AI performance?**
-- News articles require domain knowledge not present in text alone
-- Business relevance depends on internal context (competitors, ongoing projects)
-- Weekly trend changes make historical patterns less predictive
+1. **인증 시스템 추가**: 이메일 + 비밀번호 로그인
+2. **대시보드 분리**: Internal/External/Daily 3가지 버전
+3. **키워드 분리**: Weekly와 Daily 키워드 완전 분리 (중복 없음)
+4. **설정 파일 기반**: 코드 수정 없이 keywords.yaml에서 키워드 관리
+5. **Private Repository**: 코드 및 키워드 보안 강화
 
-**Solution:** Rely primarily on rule-based category scoring (70%) with AI as minor adjustment (30%)
+## 문서
 
-## 🎯 Key Technologies
+- [Implementation Plan](docs/implementation_plan.md)
+- [Keyword Classification](docs/keyword_classification.md)
+- [Daily Strategy & Deployment](docs/daily_strategy_and_deployment.md)
+- [Keyword Assignment Logic](docs/keyword_assignment_improvement.md)
 
-- **NLP**: Sentence Transformers (paraphrase-multilingual-mpnet-base-v2)
-- **ML**: LightGBM, PCA (384→64 dims), Scikit-learn
-- **Web**: Streamlit
-- **Translation**: Gemini 2.0 Flash API, Google Translate (fallback)
-- **Crawling**: Naver News Search API
+## 라이선스
 
-## 🚀 Deployment
-
-### Streamlit Cloud (Recommended)
-
-1. **Push to GitHub** (Private repository)
-2. **Connect Streamlit Cloud**: streamlit.io/cloud
-3. **Deploy**: Select repository → Auto-deploy
-4. **Share link**: Only dashboard visible, code remains private
-
-### Local Deployment
-
-```bash
-streamlit run dashboard_app.py
-```
-
-Access at: `http://localhost:8501`
-
-## 📝 License
-
-Internal use only - ZP Therapeutics
-
-## � Author
-
-Business Development Team  
-ZP Therapeutics Korea
+Internal use only - Zuellig Pharma Korea
