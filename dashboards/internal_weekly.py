@@ -551,8 +551,8 @@ else:
 # --- KakaoTalk Summary Generator (Sidebar) ---
 with st.sidebar:
     st.divider()
-    st.subheader("💬 Kakao Update")
-    if st.button("📝 Create Summary"):
+    with st.expander("💬 Kakao Update", expanded=False):
+        if st.button("📝 Create Summary"):
         with st.spinner("Selecting best articles & formatting..."):
             k_df = filtered_df.copy()
             COMPETITORS = ["지오영", "DKSH", "블루엠텍", "바로팜", "용마", "쉥커", "DHL", "LX판토스", "CJ"]
