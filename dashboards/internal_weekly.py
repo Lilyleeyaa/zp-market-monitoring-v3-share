@@ -515,7 +515,7 @@ else:
         st.markdown(f"""
         <div style="margin-top: 20px; margin-bottom: 15px;">
             <h3 style="font-size: 22px; color: #006666; border-bottom: 2px solid #0ABAB5; padding-bottom: 8px;">
-                📂 {display_category} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
+                {display_category} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
             </h3>
         </div>
         """, unsafe_allow_html=True)
