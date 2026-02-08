@@ -551,64 +551,64 @@ else:
 # --- KakaoTalk Summary Generator (Sidebar) ---
 with st.sidebar:
     st.divider()
-    st.subheader("💬 Kakao Update")
-    if st.button("📝 Create Summary"):
-        with st.spinner("Selecting best articles & formatting..."):
-            k_df = filtered_df.copy()
-            COMPETITORS = ["지오영", "DKSH", "블루엠텍", "바로팜", "용마", "쉥커", "DHL", "LX판토스", "CJ"]
-            def has_competitor(text):
-                return any(comp in str(text) for comp in COMPETITORS)
-            k_df = k_df[~k_df['title'].apply(has_competitor)]
+    with st.expander("💬 Kakao Update", expanded=False):
+        if st.button("📝 Create Summary"):
+            with st.spinner("Selecting best articles & formatting..."):
+                k_df = filtered_df.copy()
+                COMPETITORS = ["지오영", "DKSH", "블루엠텍", "바로팜", "용마", "쉥커", "DHL", "LX판토스", "CJ"]
+                def has_competitor(text):
+                    return any(comp in str(text) for comp in COMPETITORS)
+                k_df = k_df[~k_df['title'].apply(has_competitor)]
             
-            sort_c = 'final_score' if 'final_score' in k_df.columns else ('lgbm_score' if 'lgbm_score' in k_df.columns else 'published_date')
-            k_df = k_df.sort_values(sort_c, ascending=False).head(20)
+                sort_c = 'final_score' if 'final_score' in k_df.columns else ('lgbm_score' if 'lgbm_score' in k_df.columns else 'published_date')
+                k_df = k_df.sort_values(sort_c, ascending=False).head(20)
             
-            NEGATIVE_KEYWORDS = ["과징금", "행정처분", "적발", "위반", "검찰", "소송", "불만", "매각", "철수"]
-            def is_distribution_article(row):
-                category = row.get('category', '')
-                text = str(row['title']) + " " + str(row.get('summary', ''))
-                if category == 'Distribution': return True
-                if category == 'Supply Issues': return True
-                if category == 'Zuellig':
-                    if not any(neg in text for neg in NEGATIVE_KEYWORDS): return True
-                return False
+                NEGATIVE_KEYWORDS = ["과징금", "행정처분", "적발", "위반", "검찰", "소송", "불만", "매각", "철수"]
+                def is_distribution_article(row):
+                    category = row.get('category', '')
+                    text = str(row['title']) + " " + str(row.get('summary', ''))
+                    if category == 'Distribution': return True
+                    if category == 'Supply Issues': return True
+                    if category == 'Zuellig':
+                        if not any(neg in text for neg in NEGATIVE_KEYWORDS): return True
+                    return False
             
-            dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].head(10)
-            ind_df = k_df[~k_df.apply(is_distribution_article, axis=1)].head(10)
+                dist_df = k_df[k_df.apply(is_distribution_article, axis=1)].head(10)
+                ind_df = k_df[~k_df.apply(is_distribution_article, axis=1)].head(10)
             
-            header_dist = "📦 [의약품 유통 (Distribution)]"
-            header_ind = "🏢 [제약 업계 (Pharma Industry)]"
-            msg_none = "- (관련 주요 기사 없음)"
+                header_dist = "📦 [의약품 유통 (Distribution)]"
+                header_ind = "🏢 [제약 업계 (Pharma Industry)]"
+                msg_none = "- (관련 주요 기사 없음)"
             
-            if use_english:
-                header_dist = "📦 [Distribution News]"
-                header_ind = "🏢 [Pharma Industry News]"
-                msg_none = "- (No major articles found)"
+                if use_english:
+                    header_dist = "📦 [Distribution News]"
+                    header_ind = "🏢 [Pharma Industry News]"
+                    msg_none = "- (No major articles found)"
 
-            kakao_msg = f"[ZP Market Monitoring Weekly Update]\n📅 Period: {start_date} ~ {end_date}\n\n"
+                kakao_msg = f"[ZP Market Monitoring Weekly Update]\n📅 Period: {start_date} ~ {end_date}\n\n"
             
-            def format_block(df_block):
-                msg = ""
-                if df_block.empty:
-                    msg += f"{msg_none}\n"
+                def format_block(df_block):
+                    msg = ""
+                    if df_block.empty:
+                        msg += f"{msg_none}\n"
+                    else:
+                        for _, row in df_block.iterrows():
+                            t = row['title']
+                            s = row.get('summary', '')
+                            k = row.get('keywords', '')
+                            d = row.get('published_date', '')
+                            if use_english:
+                                t, s, _ = translate_article_batch(t, s, k)
+                            msg += f"{t} | {d}\n{s}\n{row['url']}\n\n"
+                    return msg
+
+                kakao_msg += f"{header_dist}\n" + format_block(dist_df)
+                kakao_msg += f"\n{header_ind}\n" + format_block(ind_df)
+            
+                if use_english:
+                    kakao_msg += "\n\nℹ️ Note: AI-generated summary."
                 else:
-                    for _, row in df_block.iterrows():
-                        t = row['title']
-                        s = row.get('summary', '')
-                        k = row.get('keywords', '')
-                        d = row.get('published_date', '')
-                        if use_english:
-                            t, s, _ = translate_article_batch(t, s, k)
-                        msg += f"{t} | {d}\n{s}\n{row['url']}\n\n"
-                return msg
-
-            kakao_msg += f"{header_dist}\n" + format_block(dist_df)
-            kakao_msg += f"\n{header_ind}\n" + format_block(ind_df)
-            
-            if use_english:
-                kakao_msg += "\n\nℹ️ Note: AI-generated summary."
-            else:
-                kakao_msg += "\n\nℹ️ 알림: AI 모델 자동 생성 요약입니다."
+                    kakao_msg += "\n\nℹ️ 알림: AI 모델 자동 생성 요약입니다."
                 
-            st.success("✅ Summary Generated!")
-            st.code(kakao_msg, language=None)
+                st.success("✅ Summary Generated!")
+                st.code(kakao_msg, language=None)
