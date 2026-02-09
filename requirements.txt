@@ -1,15 +1,28 @@
-pandas
-numpy
+# Core data processing (NumPy 1.x for compatibility)
+numpy>=1.26.0,<2.0.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+lightgbm>=4.0.0
+joblib>=1.3.0
+
+# Web scraping & APIs
 requests
 beautifulsoup4
+
+# NLP & ML
 sentence-transformers
-lightgbm
-scikit-learn
+
+# Dashboard
 streamlit>=1.28.0
 plotly
-konlpy
-deep-translator
 altair<5
+
+# Korean NLP
+konlpy
+
+# Translation
+deep-translator
+
+# Utils
 pyyaml
 
-joblib
