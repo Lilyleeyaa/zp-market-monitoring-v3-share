@@ -24,46 +24,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS & Global Styling
-st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<style>
-/* Force Material Icons to work */
-.material-icons, [class*="material-icons"] {
-    font-family: 'Material Icons' !important;
-    font-weight: normal !important;
-    font-style: normal !important;
-    font-size: 24px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-feature-settings: 'liga';
-    -webkit-font-smoothing: antialiased;
-}
-
-/* Apply Noto Sans KR globally */
-html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
-    font-family: 'Noto Sans KR', sans-serif !important;
-}
-
-.stMarkdown, .stText, .stButton button, .stSelectbox, .stMultiSelect {
-    font-family: 'Noto Sans KR', sans-serif !important;
-}
-
-textarea, input, .stTextArea textarea, .stTextInput input {
-    font-family: 'Noto Sans KR', sans-serif !important;
-}
-
-[data-testid="stMarkdownContainer"] {
-    font-family: 'Noto Sans KR', sans-serif !important;
-}
-</style>
-""", unsafe_allow_html=True)
+# Removed custom CSS due to rendering issues
 
 # Title (V2 Style)
 st.title("🏥 Healthcare Market Monitoring")
