@@ -46,11 +46,7 @@ st.markdown("""
     -webkit-font-smoothing: antialiased;
 }
 
-/* Apply Noto Sans KR to body, but NOT to icon elements */
-body, .stMarkdown, .stText {
-    font-family: 'Noto Sans KR', sans-serif;
-}
-
+/* Apply Noto Sans KR globally */
 html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
@@ -59,12 +55,10 @@ html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
 
-/* Apply to text areas and inputs */
 textarea, input, .stTextArea textarea, .stTextInput input {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
 
-/* Streamlit specific */
 [data-testid="stMarkdownContainer"] {
     font-family: 'Noto Sans KR', sans-serif !important;
 }
