@@ -232,6 +232,48 @@ def rank_articles():
         else:
             df_top20_display = df_sorted.head(20)
         
+        # Step 7: Gemini Deduplication & Strategic Scoring (Optional)
+        print("\n[Step 7/7] Applying Gemini filter...")
+        enable_gemini = os.getenv('ENABLE_GEMINI_FILTER', 'true').lower() == 'true'
+        
+        if enable_gemini and use_model:
+            try:
+                from gemini_filter import gemini_batch_deduplicate_and_score
+                
+                # Process top 50 candidates through Gemini
+                top_candidates = df_sorted.head(50)
+                filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
+                
+                # Combine with remaining articles
+                remaining = df_sorted[~df_sorted['url'].isin(filtered_candidates['url'])]
+                df_sorted = pd.concat([filtered_candidates, remaining], ignore_index=True)
+                
+                # Update final score if gemini_score exists
+                if 'gemini_score' in df_sorted.columns:
+                    # Hybrid scoring: LGBM (40%) + Gemini (40%) + Keyword (20%)
+                    df_sorted['gemini_score'] = pd.to_numeric(df_sorted['gemini_score'], errors='coerce').fillna(5)
+                    df_sorted['gemini_score_norm'] = df_sorted['gemini_score'] / 10  # Normalize to 0-1
+                    
+                    df_sorted['final_score'] = (
+                        0.4 * df_sorted['lgbm_score_norm'] +
+                        0.4 * df_sorted['gemini_score_norm'] +
+                        0.2 * df_sorted['score_ag_norm']
+                    )
+                    print("  [OK] Hybrid scoring applied (LGBM + Gemini + Keyword)")
+                
+                # Update display list
+                df_top20_display = df_sorted.head(20)
+                
+            except Exception as e:
+                print(f"  [WARNING] Gemini filter failed: {str(e)}")
+                print("  [INFO] Continuing with LGBM scores only")
+        else:
+            if not enable_gemini:
+                print("  [INFO] Gemini filter disabled (set ENABLE_GEMINI_FILTER=true to enable)")
+            else:
+                print("  [INFO] Gemini filter skipped (LGBM not available)")
+
+        
         # Save results
         print("  - Saving results...")
         date_str = os.path.basename(latest_file).replace("articles_", "").replace(".csv", "")
