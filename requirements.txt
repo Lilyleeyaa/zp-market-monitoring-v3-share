@@ -25,4 +25,5 @@ deep-translator
 
 # Utils
 pyyaml
+python-dotenv
 
