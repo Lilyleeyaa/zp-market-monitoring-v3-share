@@ -79,12 +79,16 @@ def call_gemini_api(prompt, max_retries=3):
                 result = response.json()
                 if 'candidates' in result and result['candidates']:
                     return result['candidates'][0]['content']['parts'][0]['text']
+            elif response.status_code == 429:
+                wait_time = 30 * (attempt + 1)
+                print(f"  [429] Rate limit hit. Waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
             else:
                 print(f"  [WARNING] Gemini API error (attempt {attempt+1}): {response.status_code}")
-                time.sleep(2 ** attempt)  # Exponential backoff
+                time.sleep(5 * (attempt + 1))
         except Exception as e:
             print(f"  [WARNING] Gemini API exception (attempt {attempt+1}): {str(e)}")
-            time.sleep(2 ** attempt)
+            time.sleep(5 * (attempt + 1))
     
     return None
 
@@ -109,8 +113,8 @@ def gemini_batch_deduplicate_and_score(articles_df):
             "category": row.get('category', '')
         })
     
-    # Process in chunks
-    BATCH_SIZE = 5
+    # Process in chunks (Free Tier: 2 RPM limit)
+    BATCH_SIZE = 10
     all_gemini_results = []
     
     total_batches = (len(articles_list) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -168,10 +172,10 @@ def gemini_batch_deduplicate_and_score(articles_df):
         else:
             print(f"    -> [WARNING] Batch {batch_idx} API call failed")
 
-        # Rate Limit Delay
+        # Rate Limit Delay (Free Tier safety)
         if i + BATCH_SIZE < len(articles_list):
-            print("    -> Sleeping 10s to avoid 429...")
-            time.sleep(10)
+            print("    -> Sleeping 35s to respect 2 RPM limit...")
+            time.sleep(35)
 
     # Initialize columns
     articles_df['gemini_score'] = 0.0

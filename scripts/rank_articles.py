@@ -204,6 +204,17 @@ def rank_articles():
         else:
             # Use score_ag only
             df['final_score'] = df['score_ag'].clip(0, 10) / 10
+
+        # --- Zuellig Priority Boost ---
+        # Ensure articles mentioning Zuellig or 쥴릭 are always at the top
+        def boost_zuellig(row):
+            keywords = str(row.get('keywords', '')).lower()
+            title = str(row.get('title', '')).lower()
+            if 'zuellig' in keywords or '쥴릭' in keywords or 'zuellig' in title or '쥴릭' in title:
+                return 1.0  # Force to top ranking
+            return row['final_score']
+            
+        df['final_score'] = df.apply(boost_zuellig, axis=1)
         
         # Category-balanced selection for top results
         print("  - Applying category balancing...")
