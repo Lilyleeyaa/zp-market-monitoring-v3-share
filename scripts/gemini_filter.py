@@ -77,7 +77,8 @@ def call_gemini_api(prompt, max_retries=3):
             
             if response.status_code == 200:
                 result = response.json()
-                return result['candidates'][0]['content']['parts'][0]['text']
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text']
             else:
                 print(f"  [WARNING] Gemini API error (attempt {attempt+1}): {response.status_code}")
                 time.sleep(2 ** attempt)  # Exponential backoff
@@ -94,7 +95,7 @@ def gemini_batch_deduplicate_and_score(articles_df):
     """
     print("\n[Gemini Filter] Starting batch deduplication and scoring...")
     
-    if GEMINI_API_KEY is None:
+    if not GEMINI_API_KEY:
         print("  [WARNING] GENAI_API_KEY not found, skipping Gemini filter")
         return articles_df
     
@@ -149,4 +150,47 @@ def gemini_batch_deduplicate_and_score(articles_df):
   ]
 }}
 """
+        
+        # Call API
+        response_text = call_gemini_api(prompt)
+        
+        if response_text:
+            # Parse Response
+            try:
+                # Remove code blocks if present
+                clean_text = response_text.replace("```json", "").replace("```", "").strip()
+                data = json.loads(clean_text)
+                if "results" in data:
+                    all_gemini_results.extend(data["results"])
+                    print(f"    -> Batch {batch_idx} success: Got {len(data['results'])} results")
+            except Exception as e:
+                print(f"    -> [ERROR] Batch {batch_idx} processing failed: {e}")
+        else:
+            print(f"    -> [WARNING] Batch {batch_idx} API call failed")
+
+        # Rate Limit Delay
+        if i + BATCH_SIZE < len(articles_list):
+            print("    -> Sleeping 10s to avoid 429...")
+            time.sleep(10)
+
+    # Initialize columns
+    articles_df['gemini_score'] = 0.0
+    articles_df['is_duplicate'] = False
+    articles_df['strategic_insight'] = ""
+    
+    # Map results back to DataFrame
+    updates = 0
+    for res in all_gemini_results:
+        try:
+            art_id = res.get('id')
+            # Check if index matches (articles_df index is usually the original IDs)
+            if art_id in articles_df.index:
+                articles_df.at[art_id, 'gemini_score'] = float(res.get('score', 0))
+                articles_df.at[art_id, 'is_duplicate'] = res.get('is_duplicate', False)
+                articles_df.at[art_id, 'strategic_insight'] = res.get('strategic_insight', '')
+                updates += 1
+        except Exception as e:
+            pass
+            
+    print(f"  [Gemini] Updated {updates} articles with AI scores")
     return articles_df
