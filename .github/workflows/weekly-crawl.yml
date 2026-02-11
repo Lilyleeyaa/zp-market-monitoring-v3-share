@@ -37,6 +37,8 @@ jobs:
           python scripts/crawl_naver_news_api.py
       
       - name: Rank articles with LGBM
+        env:
+          GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
         run: |
           python scripts/rank_articles.py
       
@@ -46,5 +48,4 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add data/articles_raw/*.csv
           git diff --staged --quiet || git commit -m "Auto: Weekly crawl $(date +'%Y-%m-%d %H:%M')"
-          git pull --rebase origin main
-          git push
+          git push origin HEAD:${{ github.ref_name }}

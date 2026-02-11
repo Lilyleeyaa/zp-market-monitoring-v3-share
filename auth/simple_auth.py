@@ -43,18 +43,32 @@ def authenticate(mode='weekly'):
     
     with st.form("login_form"):
         email = st.text_input("Email", placeholder="your.email@company.com")
-        password = st.text_input("Password", type="password")
+        password = st.text_input("Password (Whitelisted users can skip)", type="password")
         submit = st.form_submit_button("Login")
         
         if submit:
-            # Password verification (common password)
-            if hash_password(password) != config['common_password_hash']:
-                st.error("❌ Incorrect password.")
-                st.stop()
+            # Load external whitelist
+            external_users = []
+            try:
+                ext_path = os.path.join(os.path.dirname(__file__), 'external_users.txt')
+                if os.path.exists(ext_path):
+                    with open(ext_path, 'r', encoding='utf-8') as f:
+                        external_users = [line.strip() for line in f if line.strip()]
+            except:
+                pass
+
+            is_whitelisted = email in external_users
+
+            # Password verification (common password OR whitelist bypass)
+            if not is_whitelisted:
+                if hash_password(password) != config['common_password_hash']:
+                    st.error("❌ Incorrect password.")
+                    st.stop()
             
-            # Determine access level by email domain
-            access_level = 'external'  # 기본값
+            # Determine access level
+            access_level = 'external'
             
+            # Whitelisted users are always external (unless they match internal domain)
             for domain in config['internal_domains']:
                 if email.endswith(domain):
                     access_level = 'internal'
