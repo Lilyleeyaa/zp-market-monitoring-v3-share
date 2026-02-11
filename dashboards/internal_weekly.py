@@ -225,12 +225,13 @@ def translate_article_batch(title, summary, keywords):
 # Data Loading (V3 Logic with Strict Filter)
 # ====================
 def get_weekly_date_range():
-    # 2월 6일 기준 주간 (User Request)
-    target_date = datetime(2026, 2, 6).date()
-    start_date = target_date - timedelta(days=7) # ~7 days range
-    return start_date, target_date
+    # Dynamic Date Range based on Data
+    # Default to today if no data, but will be overridden by data
+    today = datetime.now().date()
+    start_date = today - timedelta(days=7)
+    return start_date, today
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
     try:
         import glob
