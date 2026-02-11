@@ -4,20 +4,22 @@ Enhanced with NLP for smart keyword expansion and semantic deduplication
 """
 
 # Auto-install KoNLPy for Colab (required for accurate Korean tokenization)
+HAS_KONLPY = False
 try:
     from konlpy.tag import Okt
     _test_okt = Okt()  # Test if it works
-    print("[OK] KoNLPy already installed")
+    HAS_KONLPY = True
+    print("[OK] KoNLPy active")
 except:
-    print("[INFO] Installing KoNLPy for Korean morphological analysis...")
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "konlpy", "-q"])
-    print("[OK] KoNLPy installed successfully")
+    print("[INFO] KoNLPy inactive (using simple tokenization) - This is normal on Windows")
 
 import datetime
 import os
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load dependencies from .env file for local testing
+load_dotenv()
 import re
 import requests
 import time
@@ -124,7 +126,25 @@ EXCLUDED_KEYWORDS = [
     "주가", "주식", "목표주가", "특징주", "급등",
     "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예",
     "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
-    "채용", "신입사원", "공채", "원서접수"
+    "채용", "신입사원", "공채", "원서접수",
+    "자동차", "경차", "출고", "캐스퍼", "아반떼", "현대차", "기아", "테슬라",
+    # CSR and Executive keywords
+    "CSR", "사회공헌", "기부", "봉사활동", "환경보호", "지속가능경영",
+    "대표이사 선임", "대표이사 교체", "임원 인사", "인사 발령", "사장 취임",
+    "축하 파티", "창립기념", "사옥 이전", "사옥 준공",
+    # Clinical trials and R&D (low commercial value)
+    "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대",
+    "전임상", "초기 연구", "R&D 투자", "연구개발 단계",
+    # Health tips and general health info (not business)
+    "건강 팁", "건강관리", "건강 정보", "건강수칙", "예방법",
+    "다이어트", "운동법", "식단", "영양제 추천",
+    # Awards and Recognition (NEW - Specific User Request)
+    "수상", "포상", "시상식", "표창", "대상을 수상", "금상을 수상", "선정",
+    # Financial/Corporate Noise (NEW)
+    "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
+    "주주총회", "배당", "자사주", "매입", "소각",
+    # Irrelevant
+    "인사", "동정", "부고", "모집", "게시판", "알림"
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
@@ -158,6 +178,41 @@ def is_noise_article(text):
              return True
 
     return False
+
+def deduplicate_articles(articles, threshold=0.85):
+    """
+    Remove articles with similar title + description using SequenceMatcher
+    """
+    if not articles:
+        return []
+
+    print(f"\n[Deduplication] Starting with {len(articles)} articles...")
+    unique_articles = []
+    
+    # Sort by length (descending) to prefer longer/richer content
+    articles.sort(key=lambda x: len(x.get('summary', '')) if x.get('summary') else 0, reverse=True)
+    
+    for article in articles:
+        is_duplicate = False
+        # Combine title and summary for comparison
+        current_text = article['title'] + " " + article['summary']
+        
+        for existing in unique_articles:
+            existing_text = existing['title'] + " " + existing['summary']
+            
+            # SequenceMatcher is O(N*M), but fine for < 500 articles
+            similarity = difflib.SequenceMatcher(None, current_text, existing_text).ratio()
+            
+            if similarity >= threshold:
+                is_duplicate = True
+                # print(f"  [Duplicate] ({similarity:.2f}) {article['title'][:30]}... <==> {existing['title'][:30]}...")
+                break
+        
+        if not is_duplicate:
+            unique_articles.append(article)
+            
+    print(f"[Deduplication] Reduced from {len(articles)} to {len(unique_articles)} articles.")
+    return unique_articles
 
 def is_healthcare_related(text):
     """
@@ -759,6 +814,9 @@ def main():
                 art['category'] = 'Client'
                 continue
                 
+        # --- NEW: Semantic Deduplication before DataFrame creation ---
+        all_articles = deduplicate_articles(all_articles, threshold=0.85)
+        
         df = pd.DataFrame(all_articles)
         
         # Process dates
