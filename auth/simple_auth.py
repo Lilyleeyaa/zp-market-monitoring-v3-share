@@ -43,7 +43,7 @@ def authenticate(mode='weekly'):
     
     with st.form("login_form"):
         email = st.text_input("Email", placeholder="your.email@company.com")
-        password = st.text_input("Password (Whitelisted users can skip)", type="password")
+        password = st.text_input("Password", type="password")
         submit = st.form_submit_button("Login")
         
         if submit:
@@ -59,8 +59,14 @@ def authenticate(mode='weekly'):
 
             is_whitelisted = email in external_users
 
-            # Password verification (common password OR whitelist bypass)
-            if not is_whitelisted:
+            # Password verification
+            if is_whitelisted:
+                # External Users: Must use specific password
+                if password != "MNCbd!":
+                    st.error("❌ Incorrect password.")
+                    st.stop()
+            else:
+                # Internal Users: Common internal password
                 if hash_password(password) != config['common_password_hash']:
                     st.error("❌ Incorrect password.")
                     st.stop()
