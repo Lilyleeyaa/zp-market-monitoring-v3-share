@@ -10,8 +10,15 @@ np.random.seed(42)
 import pandas as pd
 import os
 import pickle
+import pickle
 import glob
-import lightgbm as lgb
+try:
+    import lightgbm as lgb
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
+    print("[WARNING] LightGBM not found. Skipping model-based ranking.")
+
 from sentence_transformers import SentenceTransformer
 
 # Configuration
@@ -86,6 +93,9 @@ def rank_articles():
         print("\n[Step 4/6] Loading model & scaler...")
         try:
             import joblib
+            if not HAS_LGBM:
+                 raise ImportError("LightGBM module not loaded")
+            
             model = lgb.Booster(model_file=MODEL_PATH)
             # Use joblib instead of pickle for better numpy compatibility
             scaler = joblib.load(SCALER_PATH)
@@ -232,50 +242,67 @@ def rank_articles():
         else:
             df_top20_display = df_sorted.head(20)
         
-        # Step 7: Gemini Deduplication & Strategic Scoring (Optional)
+        # Step 7: Gemini Deduplication & Strategic Scoring (Always Run if Key Exists)
         print("\n[Step 7/7] Applying Gemini filter...")
-        enable_gemini = os.getenv('ENABLE_GEMINI_FILTER', 'true').lower() == 'true'
         
-        if enable_gemini and use_model:
+        # Check API Key availability
+        gemini_key = os.getenv('GENAI_API_KEY')
+        if not gemini_key:
+            print("  [WARNING] GENAI_API_KEY not found. Skipping Gemini filter.")
+        else:
             try:
                 from gemini_filter import gemini_batch_deduplicate_and_score
                 
-                # Process top 50 candidates through Gemini
-                top_candidates = df_sorted.head(50)
+                # Process top 40 candidates through Gemini (Top 40 by ScoreAG)
+                # Using 40 to save tokens but cover most relevant news
+                top_candidates = df_sorted.head(40).copy()
+                
+                print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
                 filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
                 
-                # Combine with remaining articles
-                remaining = df_sorted[~df_sorted['url'].isin(filtered_candidates['url'])]
-                df_sorted = pd.concat([filtered_candidates, remaining], ignore_index=True)
-                
-                # Update final score if gemini_score exists
-                if 'gemini_score' in df_sorted.columns:
-                    # Hybrid scoring: LGBM (40%) + Gemini (40%) + Keyword (20%)
-                    df_sorted['gemini_score'] = pd.to_numeric(df_sorted['gemini_score'], errors='coerce').fillna(5)
-                    df_sorted['gemini_score_norm'] = df_sorted['gemini_score'] / 10  # Normalize to 0-1
+                if filtered_candidates is not None and not filtered_candidates.empty:
+                    # Update scores based on Gemini assessment
+                    # If gemini_score >= 8: Bonus +2.0
+                    # If gemini_score <= 2: Penalty -5.0 (Effectively remove)
                     
-                    df_sorted['final_score'] = (
-                        0.4 * df_sorted['lgbm_score_norm'] +
-                        0.4 * df_sorted['gemini_score_norm'] +
-                        0.2 * df_sorted['score_ag_norm']
-                    )
-                    print("  [OK] Hybrid scoring applied (LGBM + Gemini + Keyword)")
-                
-                # Update display list
-                df_top20_display = df_sorted.head(20)
-                
+                    def apply_gemini_impact(row):
+                        g_score = row.get('gemini_score', 0)
+                        current_score = row.get('final_score', 0)
+                        
+                        if g_score >= 8:
+                            return min(current_score * 1.5, 1.0) # Boost high relevance
+                        elif g_score >= 6:
+                            return min(current_score * 1.2, 1.0)
+                        elif g_score <= 2:
+                            return 0.0 # Remove noise (Awards, etc.)
+                        else:
+                            return current_score
+                            
+                    filtered_candidates['final_score'] = filtered_candidates.apply(apply_gemini_impact, axis=1)
+                    
+                    # Remove duplicates and low scores
+                    filtered_candidates = filtered_candidates[filtered_candidates['final_score'] > 0]
+                    
+                    # Merge back
+                    # 1. Articles processed by Gemini
+                    # 2. Articles NOT processed (ranked 41+)
+                    remaining = df_sorted.iloc[40:] 
+                    
+                    df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
+                    df_sorted = df_final.sort_values(by='final_score', ascending=False)
+                    print(f"  [OK] Gemini filtering complete. Top score: {df_sorted['final_score'].max():.2f}")
+                    
+            except ImportError:
+                print("  [ERROR] Could not import gemini_filter. Check scripts/gemini_filter.py")
             except Exception as e:
-                print(f"  [WARNING] Gemini filter failed: {str(e)}")
+                print(f"  [ERROR] Gemini filter failed: {str(e)}")
                 print("  [INFO] Continuing with LGBM scores only")
-        else:
-            if not enable_gemini:
-                print("  [INFO] Gemini filter disabled (set ENABLE_GEMINI_FILTER=true to enable)")
-            else:
-                print("  [INFO] Gemini filter skipped (LGBM not available)")
-
         
-        # Save results
-        print("  - Saving results...")
+        # Update display list with new sorted top 20
+        df_top20_display = df_sorted.head(20)
+        
+        # Step 8: Save results
+        print("\n[Step 8/8] Saving results...")
         date_str = os.path.basename(latest_file).replace("articles_", "").replace(".csv", "")
         output_file = os.path.join(RAW_DATA_DIR, f"articles_ranked_{date_str}.csv")
         
