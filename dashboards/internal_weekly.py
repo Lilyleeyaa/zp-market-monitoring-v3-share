@@ -147,7 +147,7 @@ except:
 if not GENAI_API_KEY:
     # Placeholder for local development if secrets not set (Translation will fail gracefully)
     pass
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GENAI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
 @st.cache_data(show_spinner=False)
 def translate_text(text, target='en'):
