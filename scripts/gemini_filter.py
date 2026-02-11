@@ -15,7 +15,7 @@ GEMINI_API_KEY = os.getenv('GENAI_API_KEY', '')
 if GEMINI_API_KEY:
     GEMINI_API_KEY = GEMINI_API_KEY.strip()  # Remove potential whitespace/newlines
 
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 # BD Manager Persona Prompt
 BD_PERSONA_PROMPT = """
@@ -51,14 +51,25 @@ BD_PERSONA_PROMPT = """
 - 1~2점: 수상 소식, 단순 흑자/적자 공시, CSR 활동, 임상 초기 단계.
 """
 
-def call_gemini_api(prompt, max_retries=3):
+def call_gemini_api(prompt, max_retries=4):
     """Call Gemini API with retry logic"""
-    for attempt in range(max_retries):
-        try:
-            # Debug: Print URL (Masked Key)
-            masked_url = GEMINI_API_URL.replace(GEMINI_API_KEY, "API_KEY_MASKED") if GEMINI_API_KEY else "NO_KEY"
-            if attempt == 0:
-                print(f"  [DEBUG] Requesting Gemini API: {masked_url}")
+    # Fallback URLs in case of 404 or persistent failures
+    URLs = [
+        GEMINI_API_URL,
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    ]
+    
+    for url_idx, current_url in enumerate(URLs):
+        if url_idx > 0:
+            print(f"  [INFO] Trying alternative endpoint/model: {current_url.split('/models/')[1].split(':')[0]}")
+
+        for attempt in range(max_retries):
+            try:
+                # Debug: Print URL (Masked Key)
+                masked_url = current_url.replace(GEMINI_API_KEY, "API_KEY_MASKED") if GEMINI_API_KEY else "NO_KEY"
+                if attempt == 0:
+                    print(f"  [DEBUG] Requesting Gemini API: {masked_url}")
 
             response = requests.post(
                 GEMINI_API_URL,
@@ -83,12 +94,21 @@ def call_gemini_api(prompt, max_retries=3):
                 wait_time = 30 * (attempt + 1)
                 print(f"  [429] Rate limit hit. Waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
+            elif response.status_code == 429:
+                wait_time = 70 * (attempt + 1)
+                print(f"  [429] Rate limit hit. Response: {response.text[:200]}")
+                print(f"  [429] Rate limit hit. Waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+            elif response.status_code == 404:
+                print(f"  [404] Model not found at this endpoint. Trying next model...")
+                break # Move to next URL in URLs list
             else:
                 print(f"  [WARNING] Gemini API error (attempt {attempt+1}): {response.status_code}")
+                print(f"  [DEBUG] Response: {response.text[:200]}")
                 time.sleep(5 * (attempt + 1))
         except Exception as e:
             print(f"  [WARNING] Gemini API exception (attempt {attempt+1}): {str(e)}")
-            time.sleep(5 * (attempt + 1))
+            time.sleep(10)
     
     return None
 
@@ -114,7 +134,7 @@ def gemini_batch_deduplicate_and_score(articles_df):
         })
     
     # Process in chunks (Free Tier: 2 RPM limit)
-    BATCH_SIZE = 10
+    BATCH_SIZE = 20
     all_gemini_results = []
     
     total_batches = (len(articles_list) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -172,10 +192,10 @@ def gemini_batch_deduplicate_and_score(articles_df):
         else:
             print(f"    -> [WARNING] Batch {batch_idx} API call failed")
 
-        # Rate Limit Delay (Free Tier safety)
+        # Rate Limit Delay (Free Tier safety: max 1.5 RPM)
         if i + BATCH_SIZE < len(articles_list):
-            print("    -> Sleeping 35s to respect 2 RPM limit...")
-            time.sleep(35)
+            print("    -> Sleeping 75s to respect shared IP limits...")
+            time.sleep(75)
 
     # Initialize columns
     articles_df['gemini_score'] = 0.0
