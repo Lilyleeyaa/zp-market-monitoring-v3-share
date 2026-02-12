@@ -106,9 +106,9 @@ with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
 
-with f_col4:
-    sort_opts = ["AI Relevance", "Latest Date", "Category"]
-    sort_mode = st.selectbox("📊 Sort By", sort_opts)
+with f_col5:
+    # Changed to Checkbox for "AI Only" matching Internal
+    show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
 
 # --- Logic Phase 1: Global Exclusion (External Security) ---
 excluded_keywords = get_excluded_keywords(access_level='external')
@@ -131,9 +131,16 @@ if start_date and end_date:
 if selected_categories:
     mask = mask & (df_safe['category'].isin(selected_categories))
 
+# AI Only Filter
+if show_ai_only:
+    # Use final_score or lgbm_score >= threshold
+    score_col = 'final_score' if 'final_score' in df_safe.columns else 'lgbm_score'
+    if score_col in df_safe.columns:
+        mask = mask & (df_safe[score_col] >= 0.18) # Default AI threshold
+
 df_filtered = df_safe[mask]
 
-# --- Logic Phase 3: Quota & Rank (Re-calculate Top 20 from Safe Pool) ---
+# --- Logic Phase 3: Quota & Rank ---
 if 'final_score' not in df_filtered.columns and 'lgbm_score' in df_filtered.columns:
     df_filtered['final_score'] = df_filtered['lgbm_score']
 
@@ -234,6 +241,15 @@ st.markdown("""
         line-height: 1.6;
     }
     
+    .keyword-tag {
+        background-color: #f1f3f4;
+        color: #5f6368;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        margin-right: 5px;
+    }
+    
     /* Button Styles */
     .stButton>button {
         background-color: #0ABAB5 !important;
@@ -246,9 +262,12 @@ st.markdown("""
 if df_visible.empty:
     st.warning("표시할 뉴스가 없습니다.")
 else:
-    # Group by Category for Display (Same as Internal)
-    category_priority = ['Distribution', 'BD', 'Client', 'Zuellig']
+    # Group by Category for Display (Zuellig Priority)
+    # Priority: Zuellig -> Distribution -> BD -> Client -> Others
+    category_priority = ['Zuellig', 'Distribution', 'BD', 'Client']
     all_categories = df_visible['category'].unique()
+    
+    # Sort categories forcing Zuellig first
     sorted_categories = [cat for cat in category_priority if cat in all_categories]
     sorted_categories += sorted([cat for cat in all_categories if cat not in category_priority])
     
@@ -268,15 +287,26 @@ else:
             title = row['title']
             summary = row.get('summary', '')
             date = row.get('published_date', '')
-            # keywords = row.get('keywords', '') # Optional: Add keywords if needed
+            keywords = row.get('keywords', '')
             url = row.get('url', '#')
+            
+            # Format Keywords
+            keyword_html = ""
+            if keywords and isinstance(keywords, str):
+                for k in keywords.split(','):
+                    k = k.strip()
+                    if k:
+                        keyword_html += f'<span class="keyword-tag">#{k}</span>'
             
             # Article Card (Exact Match)
             st.markdown(f'''
             <div class="article-card">
                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666;"> | {date}</span>
+                    <span style="color: #666; margin-left:10px; font-size: 12px;">{date}</span>
+                </div>
+                <div style="margin-top: 5px;">
+                    {keyword_html}
                 </div>
                 <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
                     {summary}

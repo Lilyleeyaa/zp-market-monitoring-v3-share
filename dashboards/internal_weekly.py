@@ -480,26 +480,27 @@ else:
 st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
-# --- Article List Display (Card Style) ---
-if filtered_df.empty:
-    st.info("No articles found.")
-else:
-    category_priority = ['Distribution', 'BD', 'Client', 'Zuellig']
-    all_categories = filtered_df['category'].unique()
-    sorted_categories = [cat for cat in category_priority if cat in all_categories]
-    sorted_categories += sorted([cat for cat in all_categories if cat not in category_priority])
+# --- Article    # Display Articles by Category
+    # ============================
+    # Priority: Zuellig -> Distribution -> Client -> BD -> Others
+    category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
     
-    for category_name in sorted_categories:
-        category_df = filtered_df[filtered_df['category'] == category_name]
-        display_category = translate_text(category_name) if use_english else category_name
+    unique_categories = filtered_df['category'].dropna().unique()
+    sorted_categories = [cat for cat in category_priority if cat in unique_categories]
+    sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
+
+    for cat in sorted_categories:
+        cat_df = filtered_df[filtered_df['category'] == cat]
         
-        st.markdown(f'''
-        <div style="margin-top: 20px; margin-bottom: 15px;">
-            <h3 style="font-size: 22px; color: #006666; border-bottom: 2px solid #0ABAB5; padding-bottom: 8px;">
-                {display_category} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
-            </h3>
+        if cat_df.empty:
+            continue
+            
+        st.markdown(f"""
+        <div style="margin-top: 20px; border-bottom: 2px solid #006666; padding-bottom: 5px;">
+            <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
+            <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
         </div>
-        ''', unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
         for _, row in category_df.iterrows():
             title = row['title']
