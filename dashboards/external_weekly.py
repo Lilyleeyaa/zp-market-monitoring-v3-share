@@ -370,7 +370,7 @@ st.markdown("""
 if df_visible.empty:
     st.warning("표시할 뉴스가 없습니다.")
 else:
-    # Group by Category for Display (Zuellig Priority)
+    # Display Articles by Category matching Internal Style
     # Priority: Zuellig -> Distribution -> BD -> Client -> Others
     category_priority = ['Zuellig', 'Distribution', 'BD', 'Client']
     all_categories = df_visible['category'].unique()
@@ -382,14 +382,11 @@ else:
     for category_name in sorted_categories:
         category_df = df_visible[df_visible['category'] == category_name]
         
-        # Category Header
-        st.markdown(f'''
-        <div style="margin-top: 20px; margin-bottom: 15px;">
-            <h3 style="font-size: 22px; color: #006666; border-bottom: 2px solid #0ABAB5; padding-bottom: 8px;">
-                {category_name} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
-            </h3>
-        </div>
-        ''', unsafe_allow_html=True)
+        if category_df.empty:
+            continue
+            
+        # Clean Header (No border)
+        st.markdown(f"### {category_name} ({len(category_df)} articles)")
         
         for _, row in category_df.iterrows():
             title = row['title']
@@ -398,26 +395,21 @@ else:
             keywords = row.get('keywords', '')
             url = row.get('url', '#')
             
-            # Format Keywords
-            keyword_html = ""
-            if keywords and isinstance(keywords, str):
-                for k in keywords.split(','):
-                    k = k.strip()
-                    if k:
-                        keyword_html += f'<span class="keyword-tag">#{k}</span>'
+            # Translate if needed
+            if use_english:
+                title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
+                keywords = keywords_trans
             
-            # Article Card (Exact Match)
+            # Internal Style: Title ... | Date | Keywords
             st.markdown(f'''
             <div class="article-card">
                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666; margin-left:10px; font-size: 12px;">{date}</span>
-                </div>
-                <div style="margin-top: 5px;">
-                    {keyword_html}
+                    <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
                 </div>
                 <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
                     {summary}
                 </div>
             </div>
             ''', unsafe_allow_html=True)
+```
