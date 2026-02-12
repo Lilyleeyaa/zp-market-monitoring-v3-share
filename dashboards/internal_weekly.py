@@ -480,58 +480,47 @@ else:
 st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
-    # Display Articles by Category
-    # ============================
-    # Priority: Zuellig -> Distribution -> Client -> BD -> Others
-    category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
-    
-    unique_categories = filtered_df['category'].dropna().unique()
-    sorted_categories = [cat for cat in category_priority if cat in unique_categories]
-    sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
+# Display Articles by Category
+# ============================
+# Priority: Zuellig -> Distribution -> Client -> BD -> Others
+category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
 
-    for cat in sorted_categories:
-        cat_df = filtered_df[filtered_df['category'] == cat]
+unique_categories = filtered_df['category'].dropna().unique()
+sorted_categories = [cat for cat in category_priority if cat in unique_categories]
+sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
+
+for cat in sorted_categories:
+    cat_df = filtered_df[filtered_df['category'] == cat]
+    
+    if cat_df.empty:
+        continue
         
-        if cat_df.empty:
-            continue
-            
-        st.markdown(f"""
-        <div style="margin-top: 20px; border-bottom: 2px solid #006666; padding-bottom: 5px;">
-            <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
-            <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="margin-top: 20px; border-bottom: 2px solid #006666; padding-bottom: 5px;">
+        <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
+        <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    for _, row in cat_df.iterrows():
+        title = row['title']
+        summary = row.get('summary', '')
+        date = row.get('published_date', '')
+        keywords = row.get('keywords', '')
+        url = row.get('url', '#')
         
-        for _, row in cat_df.iterrows():
-            title = row['title']
-            summary = row.get('summary', '')
-            date = row.get('published_date', '')
-            keywords = row.get('keywords', '')
-            url = row.get('url', '#')
-            
-            # Format Keywords (Matching External Dashboard)
-            keyword_html = ""
-            if keywords and isinstance(keywords, str):
-                for k in keywords.split(','):
-                    k = k.strip()
-                    if k:
-                        keyword_html += f'<span class="keyword-tag">#{k}</span>'
-            
-            # Article Card
-            st.markdown(f'''
-            <div class="article-card">
-                <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666; margin-left:10px; font-size: 12px;">{date}</span>
-                </div>
-                <div style="margin-top: 5px;">
-                    {keyword_html}
-                </div>
-                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {summary}
-                </div>
+        # Original Internal Format: Title ... | Date | Keywords
+        st.markdown(f'''
+        <div class="article-card">
+            <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
             </div>
-            ''', unsafe_allow_html=True)
+            <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
+                {summary}
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
             ''', unsafe_allow_html=True)
 
 
