@@ -162,6 +162,13 @@ def is_noise_article(text):
     """
     if not text: return False
     
+    # --- SAFEGUARD: Always keep specific companies regardless of noise keywords ---
+    # Exception for GeoYoung/Zuellig/BlueMtek logistics & stock news
+    SAFEGUARD_KEYWORDS = ["지오영", "쥴릭", "블루엠텍"]
+    for safe_kw in SAFEGUARD_KEYWORDS:
+        if safe_kw in text:
+            return False # Not noise if these keywords are present
+
     # 1. Check Explicit Exclusions
     for exc in EXCLUDED_KEYWORDS:
         if exc in text:
@@ -648,12 +655,14 @@ def parse_naver_api_date(date_str):
             return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
+
+
 def calculate_score_by_category(category):
     """Calculate importance score based on category (Sharpened for Relevance)"""
     CATEGORY_SCORES = {
-        'Distribution': 9,    # Core Business (Highest)
+        'Distribution': 10,   # Core Business (Critical - User Request)
         'Zuellig': 10,        # Company News (Critical)
-        'Client': 9,          # Key Partners (Same as Distribution - User Request)
+        'Client': 9,          # Key Partners (High)
         'BD': 8,              # Future Growth (High)
         # Others (Approval, Reimbursement, Supply) will default to 2
     }
