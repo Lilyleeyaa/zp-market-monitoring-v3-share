@@ -495,12 +495,7 @@ for cat in sorted_categories:
     if cat_df.empty:
         continue
         
-    st.markdown(f"""
-    <div style="margin-top: 20px; border-bottom: 2px solid #006666; padding-bottom: 5px;">
-        <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
-        <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"### {cat} ({len(cat_df)} articles)")
     
     for _, row in cat_df.iterrows():
         title = row['title']
@@ -509,12 +504,27 @@ for cat in sorted_categories:
         keywords = row.get('keywords', '')
         url = row.get('url', '#')
         
+        # Style Keywords: Blue text/tag style but inline
+        # User requested "like that blue one" -> Using a distinctive blue/teal style
+        if keywords:
+            # Clean up keywords
+            kw_list = [k.strip() for k in str(keywords).split(',') if k.strip()]
+            # Join them back or style individually? User said "Title | Date | Keywords" format
+            # Let's style the whole block or individual words? 
+            # "키워드 저 파란색처럼" -> likely referring to the text color or a box. 
+            # Internal original was just text. External was tags.
+            # I will use a span with color #009688 (Teal) to match the theme color
+            styled_kws = f'<span style="color: #009688; font-weight: bold;">{", ".join(kw_list)}</span>'
+        else:
+            styled_kws = ""
+
         # Original Internal Format: Title ... | Date | Keywords
         st.markdown(f'''
         <div class="article-card">
             <div style="font-size: 16px; line-height: 1.5; color: #333;">
                 <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+                <span style="color: #666; font-size: 12px;"> | {date} | </span>
+                {styled_kws}
             </div>
             <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
                 {summary}
