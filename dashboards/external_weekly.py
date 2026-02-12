@@ -46,5 +46,3 @@ st.markdown("---")
 excluded_keywords = get_excluded_keywords(access_level='external')
 
 st.info("🚧 대시보드를 구현 중입니다...")
-st.write("이 대시보드는 경쟁사 정보를 제외하고 표시합니다.")
-st.write(f"제외되는 키워드: {', '.join(excluded_keywords)}")
