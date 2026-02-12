@@ -145,7 +145,6 @@ EXCLUDED_KEYWORDS = [
     "분회 총회", "구약사회", # Local district meetings (User Request: Keep main KPA meetings)
     # Irrelevant
     "인사", "동정", "부고", "모집", "게시판", "알림",
-    # Specific User Requests (Manual Filters)
     "새마을금고", "용마산", "용마폭포", "중랑구", # Yongma noise
     "엑셀세라퓨틱스", # Specific User Request (Irrelevant company)
     "동행재활요양병원", "요양병원", # User Request: Exclude Nursing Hospitals
