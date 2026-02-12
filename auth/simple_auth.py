@@ -49,13 +49,23 @@ def authenticate(mode='weekly'):
         if submit:
             # Load external whitelist
             external_users = []
+            
+            # 1. Load from Config/Secrets (NEW)
+            if 'external_users' in config:
+                external_users.extend(config['external_users'])
+
+            # 2. Load from File (Legacy support)
             try:
                 ext_path = os.path.join(os.path.dirname(__file__), 'external_users.txt')
                 if os.path.exists(ext_path):
                     with open(ext_path, 'r', encoding='utf-8') as f:
-                        external_users = [line.strip() for line in f if line.strip()]
+                        file_users = [line.strip() for line in f if line.strip()]
+                        external_users.extend(file_users)
             except:
                 pass
+            
+            # Remove duplicates
+            external_users = list(set(external_users))
 
             is_whitelisted = email in external_users
 
