@@ -125,34 +125,67 @@ df_visible = df_visible.sort_values('final_score', ascending=False).drop_duplica
 
 st.success(f"최신 뉴스 업데이트 완료 ({len(df_visible)}건 - 외부용 필터 적용)")
 
-# --- Display Logic (Tiffany Blue Theme) ---
+# --- Display Logic (Tiffany Blue Theme - Exact Match with Internal) ---
 st.markdown("""
 <style>
+    /* Global Background & Font */
+    .stApp {
+        background-color: #F0F8F8; /* Very Light Teal/Grey */
+    }
+    
+    /* Header/Title */
+    h1 {
+        color: #006666 !important; /* Deep Teal */
+    }
+    
+    /* Article Card Styles */
     .article-card {
         padding: 15px;
         border-radius: 8px;
         margin-bottom: 15px;
-        background-color: #ffffff;
-        border-left: 5px solid #0ABAB5; /* Tiffany Blue */
+        background-color: #ffffff; /* White card */
+        border-left: 5px solid #0ABAB5; /* Tiffany Blue Accent */
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
+    
+    .article-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #008080; /* Teal */
+        text-decoration: none;
+    }
+    .article-title:hover {
+        color: #0ABAB5; /* Tiffany Blue on Hover */
+        text_decoration: underline;
+    }
+    
+    .article-meta {
+        font-size: 12px;
+        color: #888;
+    }
+    
     .category-badge {
-        background-color: #E0F2F1;
-        color: #00695C;
+        background-color: #E0F2F1; /* Light Teal background */
+        color: #00695C; /* Dark Teal text */
         padding: 4px 8px;
         border-radius: 12px;
         font-size: 12px;
-        font-weight: bold;
+        font-weight: 500;
+        margin-left: 5px;
     }
-    a {
-        text-decoration: none;
-        color: #008080 !important;
-        font-weight: bold;
-        font-size: 18px;
+
+    .article-summary {
+        font-size: 14px;
+        color: #444;
+        margin-top: 8px;
+        line-height: 1.6;
     }
-    a:hover {
-        color: #0ABAB5 !important;
-        text-decoration: underline;
+    
+    /* Button Styles */
+    .stButton>button {
+        background-color: #0ABAB5 !important;
+        color: white !important;
+        border: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -160,28 +193,40 @@ st.markdown("""
 if df_visible.empty:
     st.warning("표시할 뉴스가 없습니다.")
 else:
-    # Sort by Score or Date
-    if 'final_score' in df_visible.columns:
-        df_visible = df_visible.sort_values('final_score', ascending=False)
+    # Group by Category for Display (Same as Internal)
+    category_priority = ['Distribution', 'BD', 'Client', 'Zuellig']
+    all_categories = df_visible['category'].unique()
+    sorted_categories = [cat for cat in category_priority if cat in all_categories]
+    sorted_categories += sorted([cat for cat in all_categories if cat not in category_priority])
     
-    for _, row in df_visible.iterrows():
-        title = row['title']
-        summary = row.get('summary', '')
-        date = row.get('published_date', '')
-        category = row.get('category', 'News')
-        url = row.get('url', '#')
+    for category_name in sorted_categories:
+        category_df = df_visible[df_visible['category'] == category_name]
         
-        st.markdown(f"""
-        <div class="article-card">
-            <div>
-                <span class="category-badge">{category}</span>
-                <span style="color: #888; font-size: 12px; margin-left: 10px;">{date}</span>
-            </div>
-            <div style="margin-top: 8px;">
-                <a href="{url}" target="_blank">{title}</a>
-            </div>
-            <div style="margin-top: 8px; color: #555; font-size: 14px; line-height: 1.6;">
-                {summary}
-            </div>
+        # Category Header
+        st.markdown(f'''
+        <div style="margin-top: 20px; margin-bottom: 15px;">
+            <h3 style="font-size: 22px; color: #006666; border-bottom: 2px solid #0ABAB5; padding-bottom: 8px;">
+                {category_name} <span style="color: #888; font-size: 18px;">({len(category_df)} articles)</span>
+            </h3>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
+        
+        for _, row in category_df.iterrows():
+            title = row['title']
+            summary = row.get('summary', '')
+            date = row.get('published_date', '')
+            # keywords = row.get('keywords', '') # Optional: Add keywords if needed
+            url = row.get('url', '#')
+            
+            # Article Card (Exact Match)
+            st.markdown(f'''
+            <div class="article-card">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666;"> | {date}</span>
+                </div>
+                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {summary}
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
