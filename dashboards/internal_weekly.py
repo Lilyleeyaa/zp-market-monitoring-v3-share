@@ -495,7 +495,12 @@ for cat in sorted_categories:
     if cat_df.empty:
         continue
         
-    st.markdown(f"### {cat} ({len(cat_df)} articles)")
+    st.markdown(f"""
+    <div style="margin-top: 20px; padding-bottom: 5px;">
+        <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
+        <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
+    </div>
+    """, unsafe_allow_html=True)
     
     for _, row in cat_df.iterrows():
         title = row['title']
