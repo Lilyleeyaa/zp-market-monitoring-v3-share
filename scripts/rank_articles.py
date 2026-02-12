@@ -225,10 +225,10 @@ def rank_articles():
         balanced_selection = []
         categories = df['category'].unique()
         
-        # First pass: Top 2 from each major category (Minimum Guarantee - Safety Net)
+        # First pass: Top 4 from each major category (Reverted to 4 as per user request - Safety Net)
         for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
             if cat in categories:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(2)
+                cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
                 balanced_selection.append(cat_articles)
         
         # Second pass: Top 1-2 from other categories
