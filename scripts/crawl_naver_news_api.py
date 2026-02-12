@@ -144,7 +144,9 @@ EXCLUDED_KEYWORDS = [
     "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
     "주주총회", "배당", "자사주", "매입", "소각",
     # Irrelevant
-    "인사", "동정", "부고", "모집", "게시판", "알림"
+    "인사", "동정", "부고", "모집", "게시판", "알림",
+    # Specific User Requests (Manual Filters)
+    "새마을금고", "용마산", "용마폭포", "중랑구" # Yongma noise
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
@@ -194,7 +196,7 @@ def deduplicate_articles(articles, threshold=0.85):
     
     for article in articles:
         is_duplicate = False
-        # Combine title and summary for comparison
+        # Combine title and summary for comparison (Stronger deduplication)
         current_text = article['title'] + " " + article['summary']
         
         for existing in unique_articles:
@@ -203,6 +205,7 @@ def deduplicate_articles(articles, threshold=0.85):
             # SequenceMatcher is O(N*M), but fine for < 500 articles
             similarity = difflib.SequenceMatcher(None, current_text, existing_text).ratio()
             
+            # Increased threshold slightly to avoid false positives with long common boilerplate
             if similarity >= threshold:
                 is_duplicate = True
                 # print(f"  [Duplicate] ({similarity:.2f}) {article['title'][:30]}... <==> {existing['title'][:30]}...")
@@ -280,7 +283,7 @@ def is_similar_to_seen(new_article_text, existing_articles, threshold=0.85):
     Falls back to Jaccard similarity if NLP not available
     
     Args:
-        new_article_text: New article title + summary
+        new_article_text: New article title + summary (User enforced Title+Body check)
         existing_articles: List of existing articles (dicts with 'title', 'summary')
         threshold: Similarity threshold (0.85 for semantic, 0.4 for Jaccard)
     """
@@ -291,9 +294,9 @@ def is_similar_to_seen(new_article_text, existing_articles, threshold=0.85):
     recent_articles = existing_articles[-500:]
     
     for art in recent_articles:
-        # Compare titles only (V1 approach - more reliable)
-        existing_title = art.get('title', '')
-        existing_tokens = tokenize_title(existing_title)
+        # Compare Title + Summary for stronger deduplication (V2 approach - user requested)
+        existing_text = art.get('title', '') + " " + art.get('summary', '') 
+        existing_tokens = tokenize_title(existing_text)
         
         if not existing_tokens: continue
         
@@ -305,7 +308,10 @@ def is_similar_to_seen(new_article_text, existing_articles, threshold=0.85):
         
         # Hybrid tokenization with stricter threshold to reduce noise
         # 2+ shared tokens OR 60%+ similarity = duplicate (Reduced from 3/30%)
-        if intersection >= 2 or similarity >= 0.6:
+        # Note: Since we use more text (Title+Summary), the overlap should be naturally higher.
+        # We keep 0.6 as a conservative threshold for now.
+        if similarity >= 0.6:
+            # print(f"  [Skip Duplicate] {similarity:.2f}")
             return True
             
     return False

@@ -11,6 +11,7 @@ GEMINI_API_KEY = os.getenv('GENAI_API_KEY')
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 # BD Manager Persona Prompt - Focused on Commercialized Products
+# BD Manager Persona Prompt - Focused on Commercialized Products
 BD_PERSONA_PROMPT = """
 [Role: Senior Business Development Manager at Zuellig Pharma Korea]
 
@@ -18,8 +19,8 @@ BD_PERSONA_PROMPT = """
 
 [CRITICAL: Business Focus - 상업화 된 제품 중심]
 - 우리는 이미 시판 허가를 받아 상업화된(Commercialized) 제품의 유통/판매 파트너십에 관심이 있다.
-- 임상 1상/2상/3상 단계의 파이프라인 기사는 관심 없음 → 낮은 점수
-- 신약 허가 '완료' 후 국내 판매 파트너를 찾는 기사 → 높은 점수
+- 임상 1상/2상/3상 단계의 파이프라인 기사는 관심 없음 → 낮은 점수 (1-3점)
+- 신약 허가 '완료' 후 국내 판매 파트너를 찾는 기사 → 높은 점수 (8-10점)
 - 제품 인허가 '진행 중'이나 '예정' 수준은 관심 낮음
 
 [Core Interest & Priorities]
