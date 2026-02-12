@@ -78,10 +78,64 @@ if df.empty:
     st.stop()
 
 
+# --- Constants ---
+KEYWORD_MAPPING = {
+    'B형간염': 'Hepatitis B',
+    'C형간염': 'Hepatitis C',
+    'CDMO': 'CDMO',
+    'CMD': 'CMD',
+    'CSO': 'CSO',
+    'CAR-T': 'CAR-T',
+    'GLP-1': 'GLP-1',
+    'ADC': 'ADC',
+    'HIV': 'HIV',
+    'M&A': 'M&A',
+    'mRNA': 'mRNA',
+    'R&D': 'R&D',
+    'AI': 'AI',
+    '가다실': 'Gardasil',
+    '고혈압': 'Hypertension',
+    '골다공증': 'Osteoporosis',
+    '국가필수예방접종': 'NIP',
+    '금연치료': 'Smoking Cessation',
+    '당뇨병': 'Diabetes',
+    '대상포진': 'Shingles',
+    '독감': 'Flu',
+    '마약류': 'Narcotics',
+    '만성질환': 'Chronic Disease',
+    '면역항암제': 'Immuno-oncology',
+    '바이오시밀러': 'Biosimilar',
+    '백신': 'Vaccine',
+    '비만': 'Obesity',
+    '산정특례': 'Special Calc',
+    '상급종합병원': 'Tertiary Hosp',
+    '신약': 'New Drug',
+    '심혈관': 'Cardiovascular',
+    '암': 'Cancer',
+    '약가': 'Drug Price',
+    '약국': 'Pharmacy',
+    '연말정산': 'Tax Adj',
+    '이상지질혈증': 'Dyslipidemia',
+    '임상': 'Clinical Trial',
+    '자가면역칠환': 'Autoimmune',
+    '제네릭': 'Generic',
+    '종양': 'Tumor',
+    '중증질환': 'Severe Disease',
+    '치매': 'Dementia',
+    '탈모': 'Hair Loss',
+    '특허': 'Patent',
+    '폐암': 'Lung Cancer',
+    '품절': 'Out of Stock',
+    '항암제': 'Anticancer',
+    '헬스케어': 'Healthcare',
+    '협회': 'Association',
+    '희귀질환': 'Rare Disease'
+}
+
 # --- Top Control Bar (Filters) ---
 st.markdown("### 🔍 Filters & Settings")
 
-f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.5, 2, 2, 2, 1.5])
+f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
 
 with f_col1:
     lang_opt = st.selectbox("🌐 Language", ["Korean", "English"], index=0)
@@ -106,7 +160,56 @@ with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
 
+# Dynamic Keyword Filter Preparation
+temp_mask = pd.Series([True] * len(df))
+if start_date and end_date:
+    temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
+
+if selected_categories:
+    temp_mask = temp_mask & (df['category'].isin(selected_categories))
+
+# Apply excluded keywords FIRST to the kw extraction source
+excluded_keywords_ext = get_excluded_keywords(access_level='external')
+if excluded_keywords_ext:
+    pat = '|'.join(excluded_keywords_ext)
+    safe_kw_mask = ~(
+        df['title'].str.contains(pat, case=False, na=False) |
+        df['summary'].fillna('').str.contains(pat, case=False, na=False) |
+        df['keywords'].fillna('').str.contains(pat, case=False, na=False)
+    )
+    df_kw_source = df[temp_mask & safe_kw_mask]
+else:
+    df_kw_source = df[temp_mask]
+
+with f_col4:
+    available_keywords = []
+    if 'keywords' in df_kw_source.columns:
+        # Extract individual keywords if they are comma-separated strings
+        all_kws = []
+        for k_str in df_kw_source['keywords'].dropna().astype(str):
+            for k in k_str.split(','):
+                k = k.strip()
+                if k: all_kws.append(k)
+        available_keywords = sorted(list(set(all_kws)))
+    
+    if use_english:
+        keyword_options = [KEYWORD_MAPPING.get(k, k) for k in available_keywords]
+        en_to_kr = {KEYWORD_MAPPING.get(k, k): k for k in available_keywords}
+    else:
+        keyword_options = available_keywords
+    
+    selected_keywords_display = st.multiselect("🔑 Keyword", keyword_options, default=[])
+    
+    if use_english:
+        selected_keywords = [en_to_kr.get(k, k) for k in selected_keywords_display]
+    else:
+        selected_keywords = selected_keywords_display
+
 with f_col5:
+    sort_opts = ["AI Relevance", "Latest Date", "Category", "Keyword"]
+    sort_mode = st.selectbox("📊 Sort By", sort_opts)
+
+with f_col6:
     # Changed to Checkbox for "AI Only" matching Internal
     show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
 
@@ -131,12 +234,17 @@ if start_date and end_date:
 if selected_categories:
     mask = mask & (df_safe['category'].isin(selected_categories))
 
-# AI Only Filter
-if show_ai_only:
-    # Use final_score or lgbm_score >= threshold
-    score_col = 'final_score' if 'final_score' in df_safe.columns else 'lgbm_score'
-    if score_col in df_safe.columns:
-        mask = mask & (df_safe[score_col] >= 0.18) # Default AI threshold
+if selected_keywords:
+    # Check if ANY of the selected keywords are present in the article's keyword string
+    # Simple 'isin' doesn't work for comma-separated, so we use string verify
+    # But for performance and standard logic:
+    # Construct regex or use apply. Internal uses isin directly if normalized? 
+    # Internal code was: mask = mask & (df['keywords'].isin(selected_keywords))
+    # This implies Internal assumes single keyword or exact match? 
+    # Actually internal loader likely didn't explode keywords?
+    # Let's use str.contains logic for safety with partial matches
+    kw_pattern = '|'.join([k for k in selected_keywords])
+    mask = mask & (df_safe['keywords'].fillna('').str.contains(kw_pattern, na=False))
 
 df_filtered = df_safe[mask]
 
