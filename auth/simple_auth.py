@@ -39,6 +39,33 @@ def authenticate(mode='weekly'):
         return st.session_state['email'], st.session_state['access_level']
     
     # 로그인 폼
+    st.markdown("""
+    <style>
+        /* Login Page Styling */
+        .stTextInput input {
+            border: 2px solid #0ABAB5 !important; /* Tiffany Blue Border */
+            border-radius: 8px;
+        }
+        .stTextInput input:focus {
+            box-shadow: 0 0 5px #0ABAB5; /* Tiffany Blue Glow */
+        }
+        .stButton>button {
+            background-color: #0ABAB5 !important; /* Tiffany Blue Button */
+            color: white !important;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            width: 100%;
+        }
+        .stButton>button:hover {
+            background-color: #008080 !important; /* Darker Teal on Hover */
+        }
+        h1 {
+            color: #0ABAB5 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title("🔐 Login")
     
     with st.form("login_form"):
