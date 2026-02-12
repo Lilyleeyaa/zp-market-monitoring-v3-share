@@ -129,20 +129,18 @@ EXCLUDED_KEYWORDS = [
     "채용", "신입사원", "공채", "원서접수",
     "자동차", "경차", "출고", "캐스퍼", "아반떼", "현대차", "기아", "테슬라",
     # CSR and Executive keywords
-    "CSR", "사회공헌", "기부", "봉사활동", "환경보호", "지속가능경영",
+    "CSR", "사회공헌", "기부", "봉사활동", "환경보호", 
     "대표이사 선임", "대표이사 교체", "임원 인사", "인사 발령", "사장 취임",
     "축하 파티", "창립기념", "사옥 이전", "사옥 준공",
     # Clinical trials and R&D (low commercial value)
     "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대",
-    "전임상", "초기 연구", "R&D 투자", "연구개발 단계",
-    # Health tips and general health info (not business)
-    "건강 팁", "건강관리", "건강 정보", "건강수칙", "예방법",
-    "다이어트", "운동법", "식단", "영양제 추천",
+    "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단",
+    "한약", "한약사", # Herbal medicine noise (User Request)
+    
     # Awards and Recognition (NEW - Specific User Request)
     "수상", "포상", "시상식", "표창", "대상을 수상", "금상을 수상", "선정",
     # Financial/Corporate Noise (NEW)
-    "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
-    "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
+    "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", 
     "주주총회", "배당", "자사주", "매입", "소각", "설탕", # Commodity
     "분회 총회", "구약사회", # Local district meetings (User Request: Keep main KPA meetings)
     # Irrelevant
