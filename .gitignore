@@ -30,3 +30,6 @@ model/*.txt
 
 # Logs
 *.log
+
+# Environment variables
+.env
