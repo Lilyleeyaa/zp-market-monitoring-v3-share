@@ -1,9 +1,8 @@
-
 import requests
 import json
 
 API_KEY = "AIzaSyDUaVhDdxQQGSoudbESVv6PRpZrBW7aT_0"
-URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}"
+URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={API_KEY}"
 
 data = {
     "contents": [{

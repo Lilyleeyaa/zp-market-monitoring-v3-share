@@ -1,6 +1,3 @@
-"""
-Gemini API helper functions for article filtering and scoring
-"""
 import os
 import json
 import time
@@ -11,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv('GENAI_API_KEY')
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 # BD Manager Persona Prompt - Focused on Commercialized Products
 BD_PERSONA_PROMPT = """
@@ -95,7 +92,7 @@ def gemini_batch_deduplicate_and_score(articles_df):
     
     Returns: DataFrame with added columns: gemini_score, is_duplicate, strategic_insight
     """
-    print("\n[Gemini Filter] Starting batch deduplication and scoring...")
+    print("\n[Gemini Filter] Starting batch deduplication and scoring (Requests Mode)...")
     
     if GEMINI_API_KEY is None:
         print("  [WARNING] GENAI_API_KEY not found, skipping Gemini filter")
