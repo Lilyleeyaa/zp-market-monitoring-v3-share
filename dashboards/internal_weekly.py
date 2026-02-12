@@ -480,7 +480,7 @@ else:
 st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
-# --- Article    # Display Articles by Category
+    # Display Articles by Category
     # ============================
     # Priority: Zuellig -> Distribution -> Client -> BD -> Others
     category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
@@ -502,27 +502,36 @@ st.divider()
         </div>
         """, unsafe_allow_html=True)
         
-        for _, row in category_df.iterrows():
+        for _, row in cat_df.iterrows():
             title = row['title']
-            summary_text = row.get('summary', '')
-            category = row['category']
+            summary = row.get('summary', '')
             date = row.get('published_date', '')
             keywords = row.get('keywords', '')
+            url = row.get('url', '#')
             
-            if use_english:
-                title, summary_text, keywords_trans = translate_article_batch(title, summary_text, keywords)
-                keywords = keywords_trans
+            # Format Keywords (Matching External Dashboard)
+            keyword_html = ""
+            if keywords and isinstance(keywords, str):
+                for k in keywords.split(','):
+                    k = k.strip()
+                    if k:
+                        keyword_html += f'<span class="keyword-tag">#{k}</span>'
             
+            # Article Card
             st.markdown(f'''
             <div class="article-card">
                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                    <a href="{row['url']}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666;"> | {date} | {keywords}</span>
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; margin-left:10px; font-size: 12px;">{date}</span>
+                </div>
+                <div style="margin-top: 5px;">
+                    {keyword_html}
                 </div>
                 <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {summary_text}
+                    {summary}
                 </div>
             </div>
+            ''', unsafe_allow_html=True)
             ''', unsafe_allow_html=True)
 
 
