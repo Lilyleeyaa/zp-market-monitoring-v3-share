@@ -264,9 +264,9 @@ def rank_articles():
             try:
                 from gemini_filter import gemini_batch_deduplicate_and_score
                 
-                # Process top 40 candidates through Gemini (Top 40 by ScoreAG)
-                # Using 40 to save tokens but cover most relevant news
-                top_candidates = df_sorted.head(40).copy()
+                # Process top 100 candidates through Gemini (Top 100 by ScoreAG)
+                # Increased from 40 to 100 per user request to prevent missing important news
+                top_candidates = df_sorted.head(100).copy()
                 
                 print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
                 filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
