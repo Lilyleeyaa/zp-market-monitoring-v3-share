@@ -604,8 +604,15 @@ if show_ai_only and 'lgbm_score' in df.columns:
     df_temp = df[mask]
     
     # Filter candidates first
-    ai_candidates = df_temp[df_temp['lgbm_score'] >= 0.18]
-    top_ai = ai_candidates.nlargest(20, 'lgbm_score')
+    if 'final_score' in df_temp.columns:
+        # User Request: Use final_score (which includes Category boost) instead of raw lgbm_score
+        # Scores are usually 0.7+ for important items. Setting threshold 0.5 for safety.
+        ai_candidates = df_temp[df_temp['final_score'] >= 0.5]
+        top_ai = ai_candidates.nlargest(20, 'final_score')
+    else:
+        # Fallback to old logic
+        ai_candidates = df_temp[df_temp['lgbm_score'] >= 0.18]
+        top_ai = ai_candidates.nlargest(20, 'lgbm_score')
     
     # 2. VIP Keyword Top 10 (Safety net)
     # VIP THRESHOLD: Removed rigorous threshold (>= 0.01) to ensure KEYWORD matches always show up
