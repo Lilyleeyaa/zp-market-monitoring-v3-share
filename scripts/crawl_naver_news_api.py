@@ -147,7 +147,7 @@ EXCLUDED_KEYWORDS = [
     "인사", "동정", "부고", "모집", "게시판", "알림",
     # Specific User Requests (Manual Filters)
     "새마을금고", "용마산", "용마폭포", "중랑구", # Yongma noise
-    "대만", # Specific User Request (Irrelevant export news)
+    "엑셀세라퓨틱스", # Specific User Request (Irrelevant company)
     # Stronger Exclusion (Syncd with Gemini Prompt)
     "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대", # Clinical Pipeline (Low priority)
     "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단" # Health/Research noise
