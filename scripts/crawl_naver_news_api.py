@@ -660,9 +660,9 @@ def parse_naver_api_date(date_str):
 def calculate_score_by_category(category):
     """Calculate importance score based on category (Sharpened for Relevance)"""
     CATEGORY_SCORES = {
-        'Distribution': 10,   # Core Business (Critical - User Request)
+        'Distribution': 10,   # Core Business (Highest)
         'Zuellig': 10,        # Company News (Critical)
-        'Client': 9,          # Key Partners (High)
+        'Client': 10,         # Key Partners (Equal to Distribution - User Request)
         'BD': 8,              # Future Growth (High)
         # Others (Approval, Reimbursement, Supply) will default to 2
     }
