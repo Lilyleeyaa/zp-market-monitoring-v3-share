@@ -37,30 +37,37 @@ if access_level == 'internal':
             st.error(f"Error loading emails: {e}")
 
 # 대시보드 메인 코드
-# --- Data Loading Logic ---
+# --- Data Loading Logic (Synced with Internal) ---
 import pandas as pd
 import glob
 import datetime
+from datetime import datetime, timedelta
 
-@st.cache_data
+def get_weekly_date_range():
+    today = datetime.now().date()
+    start_date = today - timedelta(days=7)
+    return start_date, today
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_data():
     try:
         # Path relative to dashboards/ folder
         base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "articles_raw")
-        
-        # Priority 1: Ranked files
-        ranked_files = glob.glob(os.path.join(base_dir, "articles_ranked_*.csv"))
+        if not os.path.exists(base_dir):
+            base_dir = "../data/articles_raw"
+            
+        ranked_files = sorted(glob.glob(os.path.join(base_dir, "articles_ranked_*.csv")))
         if not ranked_files:
             return pd.DataFrame(), "No Data"
             
-        target_file = max(ranked_files, key=os.path.getctime)
-        df = pd.read_csv(target_file)
+        latest_file = ranked_files[-1]
+        df = pd.read_csv(latest_file, encoding='utf-8-sig')
         
         # Date conversion
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
             
-        return df, os.path.basename(target_file)
+        return df, os.path.basename(latest_file)
     except Exception as e:
         return pd.DataFrame(), str(e)
 
@@ -70,31 +77,70 @@ if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
     st.stop()
 
-# --- Filtering & Selection Logic ---
-# 1. Apply External Filter FIRST (Hide Sensitive Keywords)
+
+# --- Top Control Bar (Filters) ---
+st.markdown("### 🔍 Filters & Settings")
+
+f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.5, 2, 2, 2, 1.5])
+
+with f_col1:
+    lang_opt = st.selectbox("🌐 Language", ["Korean", "English"], index=0)
+    use_english = (lang_opt == "English")
+
+with f_col2:
+    start_week, end_week = get_weekly_date_range()
+    if 'published_date' in df.columns:
+        min_date = df['published_date'].min()
+        max_date = df['published_date'].max()
+        default_start = max(min_date, start_week) if min_date else start_week
+        default_end = min(max_date, end_week) if max_date else end_week
+        date_range = st.date_input("📅 Date Range", [default_start, default_end])
+        if isinstance(date_range, list) and len(date_range) == 2:
+            start_date, end_date = date_range
+        else:
+            start_date, end_date = default_start, default_end
+    else:
+        start_date, end_date = None, None
+
+with f_col3:
+    all_categories = sorted(df['category'].dropna().unique().tolist())
+    selected_categories = st.multiselect("📂 Category", all_categories, default=[])
+
+with f_col4:
+    sort_opts = ["AI Relevance", "Latest Date", "Category"]
+    sort_mode = st.selectbox("📊 Sort By", sort_opts)
+
+# --- Logic Phase 1: Global Exclusion (External Security) ---
 excluded_keywords = get_excluded_keywords(access_level='external')
-df_candidates = df.copy()
+df_safe = df.copy()
 
 if excluded_keywords:
     pattern = '|'.join(excluded_keywords)
-    # Check Title + Summary + Keywords for sensitive terms
     mask_sensitive = (
-        df_candidates['title'].str.contains(pattern, case=False, na=False) |
-        df_candidates['summary'].fillna('').str.contains(pattern, case=False, na=False) | 
-        df_candidates['keywords'].fillna('').str.contains(pattern, case=False, na=False)
+        df_safe['title'].str.contains(pattern, case=False, na=False) |
+        df_safe['summary'].fillna('').str.contains(pattern, case=False, na=False) | 
+        df_safe['keywords'].fillna('').str.contains(pattern, case=False, na=False)
     )
-    # Filter OUT sensitive articles
-    df_candidates = df_candidates[~mask_sensitive]
+    df_safe = df_safe[~mask_sensitive]
 
-# 2. Re-calculate Top 20 (Backfill logic)
-# We want to maintain the same "Quota of 4" logic as Internal, but on the cleaned list
-if 'final_score' not in df_candidates.columns and 'lgbm_score' in df_candidates.columns:
-    df_candidates['final_score'] = df_candidates['lgbm_score'] # Fallback
+# --- Logic Phase 2: User Filters ---
+mask = pd.Series([True] * len(df_safe))
+if start_date and end_date:
+    mask = (df_safe['published_date'] >= start_date) & (df_safe['published_date'] <= end_date)
 
-# Sort by score
-df_sorted = df_candidates.sort_values(by='final_score', ascending=False)
+if selected_categories:
+    mask = mask & (df_safe['category'].isin(selected_categories))
 
-# Apply Quota: Top 4 from each major category
+df_filtered = df_safe[mask]
+
+# --- Logic Phase 3: Quota & Rank (Re-calculate Top 20 from Safe Pool) ---
+if 'final_score' not in df_filtered.columns and 'lgbm_score' in df_filtered.columns:
+    df_filtered['final_score'] = df_filtered['lgbm_score']
+
+# Sort by Score for selection
+df_sorted = df_filtered.sort_values(by='final_score', ascending=False)
+
+# Quota Logic (Top 4 per category)
 balanced_selection = []
 selected_urls = set()
 categories = df_sorted['category'].unique()
@@ -105,25 +151,32 @@ for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
         balanced_selection.append(cat_articles)
         selected_urls.update(cat_articles['url'].tolist())
 
-# Combined Quota Selection
 if balanced_selection:
     df_balanced = pd.concat(balanced_selection)
 else:
     df_balanced = pd.DataFrame()
 
-# Fill remaining slots up to 20 with highest score articles (from ANY category)
+# Backfill remaining slots
 remaining_slots = 20 - len(df_balanced)
 if remaining_slots > 0:
     remaining_candidates = df_sorted[~df_sorted['url'].isin(selected_urls)]
     df_fill = remaining_candidates.head(remaining_slots)
     df_visible = pd.concat([df_balanced, df_fill])
 else:
-    df_visible = df_balanced.head(20) # Should verify but usually fine
+    df_visible = df_balanced.head(20)
 
-# Final Sort for Display
-df_visible = df_visible.sort_values('final_score', ascending=False).drop_duplicates(subset=['url'])
+# Final Sorting for Display
+if sort_mode == "AI Relevance":
+    if 'final_score' in df_visible.columns:
+        df_visible = df_visible.sort_values('final_score', ascending=False)
+elif sort_mode == "Category":
+    df_visible = df_visible.sort_values('category', ascending=True)
+else:
+    df_visible = df_visible.sort_values('published_date', ascending=False)
 
-st.success(f"최신 뉴스 업데이트 완료 ({len(df_visible)}건 - 외부용 필터 적용)")
+# Metrics
+st.markdown(f"**Total Articles:** {len(df_visible)}")
+st.divider()
 
 # --- Display Logic (Tiffany Blue Theme - Exact Match with Internal) ---
 st.markdown("""
