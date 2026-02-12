@@ -70,31 +70,60 @@ if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
     st.stop()
 
-# --- Filtering Logic ---
-# 1. Select Top 20 (Same as Internal)
-if 'is_top20' in df.columns:
-    df_visible = df[df['is_top20'] == True]
-elif 'final_score' in df.columns:
-    df_visible = df.nlargest(20, 'final_score')
-else:
-    df_visible = df.head(20)
-
-# 2. Apply External Filter (Hide Sensitive Keywords)
-# Get exclusion list for 'external' role
+# --- Filtering & Selection Logic ---
+# 1. Apply External Filter FIRST (Hide Sensitive Keywords)
 excluded_keywords = get_excluded_keywords(access_level='external')
+df_candidates = df.copy()
 
 if excluded_keywords:
     pattern = '|'.join(excluded_keywords)
     # Check Title + Summary + Keywords for sensitive terms
     mask_sensitive = (
-        df_visible['title'].str.contains(pattern, case=False, na=False) |
-        df_visible['summary'].fillna('').str.contains(pattern, case=False, na=False) | 
-        df_visible['keywords'].fillna('').str.contains(pattern, case=False, na=False)
+        df_candidates['title'].str.contains(pattern, case=False, na=False) |
+        df_candidates['summary'].fillna('').str.contains(pattern, case=False, na=False) | 
+        df_candidates['keywords'].fillna('').str.contains(pattern, case=False, na=False)
     )
     # Filter OUT sensitive articles
-    df_visible = df_visible[~mask_sensitive]
+    df_candidates = df_candidates[~mask_sensitive]
 
-st.success(f"최신 뉴스 업데이트 완료 ({len(df_visible)}건)")
+# 2. Re-calculate Top 20 (Backfill logic)
+# We want to maintain the same "Quota of 4" logic as Internal, but on the cleaned list
+if 'final_score' not in df_candidates.columns and 'lgbm_score' in df_candidates.columns:
+    df_candidates['final_score'] = df_candidates['lgbm_score'] # Fallback
+
+# Sort by score
+df_sorted = df_candidates.sort_values(by='final_score', ascending=False)
+
+# Apply Quota: Top 4 from each major category
+balanced_selection = []
+selected_urls = set()
+categories = df_sorted['category'].unique()
+
+for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
+    if cat in categories:
+        cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
+        balanced_selection.append(cat_articles)
+        selected_urls.update(cat_articles['url'].tolist())
+
+# Combined Quota Selection
+if balanced_selection:
+    df_balanced = pd.concat(balanced_selection)
+else:
+    df_balanced = pd.DataFrame()
+
+# Fill remaining slots up to 20 with highest score articles (from ANY category)
+remaining_slots = 20 - len(df_balanced)
+if remaining_slots > 0:
+    remaining_candidates = df_sorted[~df_sorted['url'].isin(selected_urls)]
+    df_fill = remaining_candidates.head(remaining_slots)
+    df_visible = pd.concat([df_balanced, df_fill])
+else:
+    df_visible = df_balanced.head(20) # Should verify but usually fine
+
+# Final Sort for Display
+df_visible = df_visible.sort_values('final_score', ascending=False).drop_duplicates(subset=['url'])
+
+st.success(f"최신 뉴스 업데이트 완료 ({len(df_visible)}건 - 외부용 필터 적용)")
 
 # --- Display Logic (Tiffany Blue Theme) ---
 st.markdown("""
