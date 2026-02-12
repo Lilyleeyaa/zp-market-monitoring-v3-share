@@ -385,8 +385,13 @@ else:
         if category_df.empty:
             continue
             
-        # Clean Header (No border)
-        st.markdown(f"### {category_name} ({len(category_df)} articles)")
+        # Clean Header (No border, matching Internal style)
+        st.markdown(f"""
+        <div style="margin-top: 20px; padding-bottom: 5px;">
+            <span style="font-size: 24px; font-weight: bold; color: #006666;">{category_name}</span>
+            <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(category_df)} articles)</span>
+        </div>
+        """, unsafe_allow_html=True)
         
         for _, row in category_df.iterrows():
             title = row['title']
