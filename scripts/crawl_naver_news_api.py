@@ -150,7 +150,15 @@ EXCLUDED_KEYWORDS = [
     "동행재활요양병원", "요양병원", # User Request: Exclude Nursing Hospitals
     # Stronger Exclusion (Syncd with Gemini Prompt)
     "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대", # Clinical Pipeline (Low priority)
-    "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단" # Health/Research noise
+    "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단", # Health/Research noise
+    
+    # NOISE FILTER v2.0 (Aggressive)
+    "별세", "부고", "장례", "빈소", "발인", # Obituaries
+    "육아휴직", "출산장려", "워킹맘", "공무원", "교정직", "순경", "소방관", # HR/Civil Service
+    "폭행", "폭언", "사건사고", "경찰", "구속", "적발", # Crime/Social
+    "로봇", "재활로봇", "보행로봇", "웨어러블", # Device/Tech (unless drug related, usually noise)
+    "CRO", "CDMO", "위탁생산", # Manufacturing/Service industry (often B2B ads)
+    "임상시험", "임상참여자", "대상자 모집" # Generic Clinical Trial recruitment/info
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
