@@ -826,7 +826,32 @@ def main():
                 continue
                 
         # --- NEW: Semantic Deduplication before DataFrame creation ---
-        all_articles = deduplicate_articles(all_articles, threshold=0.85)
+        # 1. Topic-Specific Deduplication (User Request: Geo-Young Ads)
+        def deduplicate_by_topic(articles):
+            print("[Deduplication] Applying specific topic caps...")
+            kept_articles = []
+            geoyoung_ad_count = 0
+            
+            for art in articles:
+                text = (art['title'] + " " + art['summary']).lower()
+                
+                # Filter: Geo-Young Vehicle Ads (Max 1)
+                # Matches: "지오영" AND ("차량" OR "광고" OR "배송")
+                if "지오영" in text and ("차량" in text or "광고" in text or "배송" in text):
+                     # Additional context check to ensure it's the ad
+                     if "감기약" in text or "브랜드" in text or "랩핑" in text:
+                        if geoyoung_ad_count >= 1:
+                            # print(f"  [Skip Topic] Geo-Young Ad Duplicate: {art['title'][:20]}...")
+                            continue
+                        geoyoung_ad_count += 1
+                
+                kept_articles.append(art)
+            return kept_articles
+
+        all_articles = deduplicate_by_topic(all_articles)
+
+        # 2. General SequenceMatcher Deduplication
+        all_articles = deduplicate_articles(all_articles, threshold=0.80)
         
         df = pd.DataFrame(all_articles)
         
@@ -865,9 +890,11 @@ def main():
                         summary_text = summarize_text(full_body)
                     else:
                         summary_text = row['summary']
+                        full_body = row['summary'] # Fallback
                 except:
                     final_title = row['title']
                     summary_text = row['summary']
+                    full_body = row['summary']
 
                 # Final Safety Net: Ensure Title and Summary are Clean (Fixes &#039; and <b> tags from API fallback)
                 if final_title:
@@ -878,12 +905,13 @@ def main():
                     summary_text = html.unescape(summary_text)
                     summary_text = re.sub(r'<[^>]+>', '', summary_text)
                 
-                return final_title, summary_text
+                return final_title, summary_text, full_body
 
             # Execute in parallel processing using threads
             # Network I/O bound, so threads are perfect
             new_titles = []
             summaries = [] # Initialize summaries list
+            bodies = []
             
             # Use map to maintain order automatically
             with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
@@ -894,15 +922,31 @@ def main():
                 results = executor.map(process_article_row, rows)
                 
                 # Convert generator to list and show progress
-                for i, (tit, sum_txt) in enumerate(results, 1):
+                for i, (tit, sum_txt, body) in enumerate(results, 1):
                     if i % 20 == 0:
                          print(f"   Processing {i}/{len(df)}... ({(i/len(df))*100:.1f}%)")
                     new_titles.append(tit)
                     summaries.append(sum_txt)
+                    bodies.append(body)
             
             df['title'] = new_titles
             df['summary'] = summaries
+            # Use body for filtering
+            df['temp_body'] = bodies
             print(f"   Done! Processed all {len(df)} articles.")
+
+            # === FILTERING STEP 2 (Deep Body Level) ===
+            print(f"\n>>> Deep Filtering (Pass 2: Full Body Check)...")
+            count_before_deep = len(df)
+            # Check exclusions on Title + Summary + Full Body
+            # If body triggers exclusion (e.g. "Yongma Saemaul Geumgo"), remove it.
+            df = df[df.apply(lambda x: not is_noise_article(str(x['title']) + ' ' + str(x['temp_body'])), axis=1)]
+            
+            # Drop the temp body column to keep CSV clean
+            df = df.drop(columns=['temp_body'])
+            
+            count_after_deep = len(df)
+            print(f"   Removed {count_before_deep - count_after_deep} articles based on full content. Final: {count_after_deep}")
 
         # Calculate score_ag based on category
         df['score_ag'] = df['category'].apply(calculate_score_by_category)
