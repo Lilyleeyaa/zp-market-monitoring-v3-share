@@ -146,7 +146,10 @@ EXCLUDED_KEYWORDS = [
     # Irrelevant
     "인사", "동정", "부고", "모집", "게시판", "알림",
     # Specific User Requests (Manual Filters)
-    "새마을금고", "용마산", "용마폭포", "중랑구" # Yongma noise
+    "새마을금고", "용마산", "용마폭포", "중랑구", # Yongma noise
+    # Stronger Exclusion (Syncd with Gemini Prompt)
+    "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대", # Clinical Pipeline (Low priority)
+    "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단" # Health/Research noise
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
@@ -181,9 +184,10 @@ def is_noise_article(text):
 
     return False
 
-def deduplicate_articles(articles, threshold=0.85):
+def deduplicate_articles(articles, threshold=0.80):
     """
     Remove articles with similar title + description using SequenceMatcher
+    Threshold lowered to 0.80 for stricter deduplication (catching rephrased ads)
     """
     if not articles:
         return []
