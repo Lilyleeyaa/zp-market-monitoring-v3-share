@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv('GENAI_API_KEY')
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
 
 # BD Manager Persona Prompt - Focused on Commercialized Products
 BD_PERSONA_PROMPT = """
@@ -79,7 +79,7 @@ def call_gemini_api(prompt, max_retries=3):
                 result = response.json()
                 return result['candidates'][0]['content']['parts'][0]['text']
             else:
-                print(f"  [WARNING] Gemini API error (attempt {attempt+1}): {response.status_code}")
+                print(f"  [WARNING] Gemini API error (attempt {attempt+1}): {response.status_code} {response.text}")
                 time.sleep(2 ** attempt)  # Exponential backoff
         except Exception as e:
             print(f"  [WARNING] Gemini API exception (attempt {attempt+1}): {str(e)}")
@@ -101,18 +101,33 @@ def gemini_batch_deduplicate_and_score(articles_df):
         print("  [WARNING] GENAI_API_KEY not found, skipping Gemini filter")
         return articles_df
     
+    # Check if empty
+    if articles_df.empty:
+        return articles_df
+
     # Prepare article list for Gemini
-    articles_list = []
+    all_articles_list = []
     for idx, row in articles_df.iterrows():
-        articles_list.append({
+        all_articles_list.append({
             "id": idx,
             "title": row['title'],
             "summary": row.get('summary', ''),
             "category": row.get('category', '')
         })
     
-    # Construct batch prompt
-    prompt = f"""{BD_PERSONA_PROMPT}
+    # Process in batches of 5
+    BATCH_SIZE = 5
+    total_articles = len(all_articles_list)
+    all_gemini_results = []
+    
+    print(f"  [Info] Processing {total_articles} articles in batches of {BATCH_SIZE}...")
+    
+    for i in range(0, total_articles, BATCH_SIZE):
+        batch = all_articles_list[i:i+BATCH_SIZE]
+        print(f"  [Batch {i//BATCH_SIZE + 1}] Processing articles {i+1} to {min(i+BATCH_SIZE, total_articles)}...")
+
+        # Construct batch prompt
+        prompt = f"""{BD_PERSONA_PROMPT}
 
 [Deduplication Task]
 1. 제공된 기사 리스트 중 동일한 사건(Event)이나 이슈를 다루고 있는 중복 기사들을 그룹화하라.
@@ -126,7 +141,7 @@ def gemini_batch_deduplicate_and_score(articles_df):
 - is_high_priority: true (8점 이상) or false
 
 [Input Articles]
-{json.dumps(articles_list, ensure_ascii=False, indent=2)}
+{json.dumps(batch, ensure_ascii=False, indent=2)}
 
 [Output Format]
 반드시 아래 JSON 형식으로 응답하라. 중복 기사는 "is_duplicate": true로 표시하되 리스트에 포함시켜라.
@@ -144,49 +159,54 @@ def gemini_batch_deduplicate_and_score(articles_df):
   ]
 }}
 """
+        # Call Gemini API
+        response_text = call_gemini_api(prompt)
+        
+        if response_text:
+             try:
+                # Extract JSON
+                json_text = response_text
+                if "```json" in response_text:
+                    json_text = response_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in response_text:
+                    json_text = response_text.split("```")[1].split("```")[0].strip()
+                
+                batch_results = json.loads(json_text)
+                if 'results' in batch_results:
+                    all_gemini_results.extend(batch_results['results'])
+                    print(f"    -> Success: Received {len(batch_results['results'])} results.")
+                else:
+                    print(f"    -> Warning: Unexpected JSON structure.")
+             except Exception as e:
+                print(f"    -> Error parsing JSON: {e}")
+        else:
+             print(f"    -> Error: No response for this batch.")
+
+        # Sleep between batches if not the last one
+        if i + BATCH_SIZE < total_articles:
+            print("    -> Sleeping 10 seconds to respect rate limits...")
+            time.sleep(10)
+
+    # Apply results to DataFrame
+    print(f"  [Gemini] Aggregated results for {len(all_gemini_results)} articles.")
+
+    for result in all_gemini_results:
+        idx = result.get('id')
+        if idx is not None and idx in articles_df.index:
+            articles_df.at[idx, 'gemini_score'] = result.get('score', 5)
+            articles_df.at[idx, 'is_duplicate'] = result.get('is_duplicate', False)
+            articles_df.at[idx, 'strategic_insight'] = result.get('strategic_insight', '')
+            articles_df.at[idx, 'is_high_priority'] = result.get('is_high_priority', False)
     
-    # Call Gemini API
-    print(f"  [Gemini] Processing {len(articles_list)} articles...")
-    response_text = call_gemini_api(prompt)
+    # Filter out duplicates
+    deduplicated = articles_df[articles_df.get('is_duplicate', False) == False].copy()
     
-    if response_text is None:
-        print("  [ERROR] Failed to get Gemini response, skipping filter")
-        return articles_df
+    print(f"  [OK] Gemini filter complete:")
+    print(f"       - Original: {len(articles_df)} articles")
+    print(f"       - Removed: {len(articles_df) - len(deduplicated)} duplicates")
+    print(f"       - Final: {len(deduplicated)} articles")
     
-    # Parse Gemini response
-    try:
-        # Extract JSON from response (handle markdown code blocks)
-        json_text = response_text
-        if "```json" in response_text:
-            json_text = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            json_text = response_text.split("```")[1].split("```")[0].strip()
-        
-        gemini_results = json.loads(json_text)
-        
-        # Add Gemini scores to DataFrame
-        for result in gemini_results.get('results', []):
-            idx = result['id']
-            if idx in articles_df.index:
-                articles_df.at[idx, 'gemini_score'] = result.get('score', 5)
-                articles_df.at[idx, 'is_duplicate'] = result.get('is_duplicate', False)
-                articles_df.at[idx, 'strategic_insight'] = result.get('strategic_insight', '')
-                articles_df.at[idx, 'is_high_priority'] = result.get('is_high_priority', False)
-        
-        # Filter out duplicates
-        deduplicated = articles_df[articles_df.get('is_duplicate', False) == False].copy()
-        
-        print(f"  [OK] Gemini filter complete:")
-        print(f"       - Original: {len(articles_df)} articles")
-        print(f"       - Removed: {len(articles_df) - len(deduplicated)} duplicates")
-        print(f"       - Final: {len(deduplicated)} articles")
-        
-        high_priority_count = len(deduplicated[deduplicated.get('is_high_priority', False) == True])
-        print(f"       - High priority (8+ score): {high_priority_count} articles")
-        
-        return deduplicated
-        
-    except Exception as e:
-        print(f"  [ERROR] Failed to parse Gemini response: {str(e)}")
-        print(f"  [DEBUG] Response preview: {response_text[:500]}...")
-        return articles_df
+    high_priority_count = len(deduplicated[deduplicated.get('is_high_priority', False) == True])
+    print(f"       - High priority (8+ score): {high_priority_count} articles")
+    
+    return deduplicated
