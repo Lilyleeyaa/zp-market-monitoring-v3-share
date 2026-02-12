@@ -142,7 +142,9 @@ EXCLUDED_KEYWORDS = [
     "수상", "포상", "시상식", "표창", "대상을 수상", "금상을 수상", "선정",
     # Financial/Corporate Noise (NEW)
     "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
-    "주주총회", "배당", "자사주", "매입", "소각",
+    "지주사", "연결재무제표", "잠정실적", "공시", "주식매수선택권", "유상증자",
+    "주주총회", "배당", "자사주", "매입", "소각", "설탕", # Commodity
+    "분회 총회", "구약사회", # Local district meetings (User Request: Keep main KPA meetings)
     # Irrelevant
     "인사", "동정", "부고", "모집", "게시판", "알림",
     # Specific User Requests (Manual Filters)
