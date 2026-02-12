@@ -604,13 +604,17 @@ if show_ai_only and 'lgbm_score' in df.columns:
     df_temp = df[mask]
     
     # Filter candidates first
-    if 'final_score' in df_temp.columns:
-        # User Request: Use final_score (which includes Category boost) instead of raw lgbm_score
-        # Scores are usually 0.7+ for important items. Setting threshold 0.5 for safety.
+    if 'is_top20' in df_temp.columns:
+        # BEST METHOD: Use the pre-calculated balanced Top 20 from the ranking script
+        # This ensures the dashboard matches the script output exactly (including Category Quotas)
+        ai_candidates = df_temp[df_temp['is_top20'] == True]
+        top_ai = ai_candidates  # No need t nlargest, it is already the top selection
+    elif 'final_score' in df_temp.columns:
+        # Fallback 1: Use final_score (Category boost included)
         ai_candidates = df_temp[df_temp['final_score'] >= 0.5]
         top_ai = ai_candidates.nlargest(20, 'final_score')
     else:
-        # Fallback to old logic
+        # Fallback 2: Old logic
         ai_candidates = df_temp[df_temp['lgbm_score'] >= 0.18]
         top_ai = ai_candidates.nlargest(20, 'lgbm_score')
     

@@ -310,7 +310,22 @@ def rank_articles():
                 print("  [INFO] Continuing with LGBM scores only")
         
         # Update display list with new sorted top 20
-        df_top20_display = df_sorted.head(20)
+        df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
+        
+        # CORRECT LOGIC: Re-apply balance if needed or use the balanced list if it was created
+        if balanced_selection:
+             # df_balanced is already sorted by final_score and contains the balanced set
+             df_top20_balanced = df_balanced.head(20)
+             
+             # Mark these as Top 20 in the full list
+             df_sorted['is_top20'] = df_sorted['url'].isin(df_top20_balanced['url'])
+             
+             # Use balanced list for display
+             df_top20_display = df_top20_balanced
+        else:
+             df_sorted['is_top20'] = False
+             df_sorted.loc[df_sorted.index[:20], 'is_top20'] = True
+             df_top20_display = df_sorted.head(20)
         
         # Step 8: Save results
         print("\n[Step 8/8] Saving results...")
