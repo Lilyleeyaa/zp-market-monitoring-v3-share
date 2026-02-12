@@ -255,30 +255,36 @@ if 'final_score' not in df_filtered.columns and 'lgbm_score' in df_filtered.colu
 # Sort by Score for selection
 df_sorted = df_filtered.sort_values(by='final_score', ascending=False)
 
-# Quota Logic (Top 4 per category)
-balanced_selection = []
-selected_urls = set()
-categories = df_sorted['category'].unique()
+# Quota Logic (Top 4 per category) OR Show All
+if show_ai_only:
+    # --- Strict AI Mode: Limit to Top 20 ---
+    balanced_selection = []
+    selected_urls = set()
+    categories = df_sorted['category'].unique()
 
-for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
-    if cat in categories:
-        cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
-        balanced_selection.append(cat_articles)
-        selected_urls.update(cat_articles['url'].tolist())
+    for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
+        if cat in categories:
+            cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
+            balanced_selection.append(cat_articles)
+            selected_urls.update(cat_articles['url'].tolist())
 
-if balanced_selection:
-    df_balanced = pd.concat(balanced_selection)
+    if balanced_selection:
+        df_balanced = pd.concat(balanced_selection)
+    else:
+        df_balanced = pd.DataFrame()
+
+    # Backfill remaining slots
+    remaining_slots = 20 - len(df_balanced)
+    if remaining_slots > 0:
+        remaining_candidates = df_sorted[~df_sorted['url'].isin(selected_urls)]
+        df_fill = remaining_candidates.head(remaining_slots)
+        df_visible = pd.concat([df_balanced, df_fill])
+    else:
+        df_visible = df_balanced.head(20)
 else:
-    df_balanced = pd.DataFrame()
-
-# Backfill remaining slots
-remaining_slots = 20 - len(df_balanced)
-if remaining_slots > 0:
-    remaining_candidates = df_sorted[~df_sorted['url'].isin(selected_urls)]
-    df_fill = remaining_candidates.head(remaining_slots)
-    df_visible = pd.concat([df_balanced, df_fill])
-else:
-    df_visible = df_balanced.head(20)
+    # --- Show All Mode ---
+    # Just show all filtered articles (Competitors already excluded in Phase 1)
+    df_visible = df_sorted
 
 # Final Sorting for Display
 if sort_mode == "AI Relevance":
