@@ -135,6 +135,128 @@ KEYWORD_MAPPING = {
     '희귀질환': 'Rare Disease'
 }
 
+# ====================
+# Translation Components (Copied from Internal)
+# ====================
+EXTRA_GLOSSARY = {
+    "데일리팜": "Daily Pharm",
+    "약사공론": "Yaksagongron",
+    "메디파나": "Medipana",
+    "의학신문": "Medical Times",
+    "청년의사": "Doctor's News",
+    "뉴스1": "News1",
+    "뉴시스": "Newsis",
+    "처방권 진입": "Entry into Prescription Market",
+    "처방권": "Prescription Market",
+    "급여 확대": "Reimbursement Expansion",
+    "급여": "Reimbursement",
+    "비급여": "Non-Reimbursement",
+    "약가 인하": "Price Cut",
+    "약가": "Drug Price",
+    "제네릭": "Generic",
+    "오리지널": "Original",
+    "품절": "Out of Stock",
+    "공급부족": "Supply Shortage",
+    "공급중단": "Supply Disruption",
+    "임상": "Clinical Trial",
+    "허가": "Approval",
+    "식약처": "MFDS",
+    "심평원": "HIRA",
+    "건보공단": "NHIS",
+    "앱글리스": "Ebglyss",
+    "엡글리스": "Ebglyss",
+    "상급종합병원": "Tertiary General Hospital",
+    "건기식": "Health Functional Food",
+    "프리필드": "Pre-filled",
+}
+
+# API Key Security: Load from Streamlit Secrets or Environment Variable
+try:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+except:
+    import os
+    GENAI_API_KEY = os.getenv("GENAI_API_KEY", "")
+
+if not GENAI_API_KEY:
+    # Placeholder for local development if secrets not set (Translation will fail gracefully)
+    pass
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+
+@st.cache_data(show_spinner=False)
+def translate_text(text, target='en'):
+    if not text: return ""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # 1. Try Gemini First (Better Context)
+            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+            
+            prompt = f"""
+            You are a professional pharmaceutical translator. 
+            Translate the following Korean text to English.
+            
+            Rules:
+            1. Maintain professional industry terminology.
+            2. Use the specific glossary below for strict term matching:
+            {glossary_context}
+            
+            Text to translate:
+            "{text}"
+            
+            Output only the translated English text, no explanations.
+            """
+            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            elif response.status_code == 429:
+                time.sleep(2)
+                continue
+            else:
+                break
+        except Exception as e:
+            break
+            
+    # 2. Fallback to Google Translator (Deep Translator)
+    try:
+        from deep_translator import GoogleTranslator
+        processed_text = text
+        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
+        for kr_term in sorted_terms:
+            if kr_term in processed_text:
+                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
+        return GoogleTranslator(source='ko', target=target).translate(processed_text)
+    except:
+        return text
+
+@st.cache_data(show_spinner=False)
+def translate_article_batch(title, summary, keywords):
+    if not title and not summary: return title, summary, keywords
+    combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
+    result_text = translate_text(combined_text)
+    
+    t_title, t_summary, t_keywords = title, summary, keywords
+    try:
+        lines = result_text.split('\n')
+        for line in lines:
+            if line.startswith("Title:") or line.startswith("Title :"):
+                t_title = line.split(":", 1)[1].strip()
+            elif line.startswith("Summary:") or line.startswith("Summary :"):
+                t_summary = line.split(":", 1)[1].strip()
+            elif line.startswith("Keywords:") or line.startswith("Keywords :"):
+                t_keywords = line.split(":", 1)[1].strip()
+    except:
+        pass
+    return t_title, t_summary, t_keywords
+
+
 # --- Top Control Bar (Filters) ---
 st.markdown("### 🔍 Filters & Settings")
 
