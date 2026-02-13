@@ -363,6 +363,11 @@ with f_col6:
 
 # --- Logic Phase 1: Global Exclusion (External Security) ---
 excluded_keywords = get_excluded_keywords(access_level='external')
+
+# User Request: Force Exclude 'Cat' in External Dashboard
+if "고양이" not in excluded_keywords:
+    excluded_keywords.append("고양이")
+
 df_safe = df.copy()
 
 if excluded_keywords:
