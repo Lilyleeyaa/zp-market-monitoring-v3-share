@@ -559,10 +559,19 @@ else:
             keywords = row.get('keywords', '')
             url = row.get('url', '#')
             
+            # --- FAILSAFE EXCLUSION (User Request) ---
+            # Check Original Korean
+            if "고양이" in title or "고양이" in summary or "고양이" in keywords:
+                continue
+
             # Translate if needed
             if use_english:
                 title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
                 keywords = keywords_trans
+                
+                # Check Translated Text
+                if "Cat" in title or "Cat" in summary:
+                    continue
             
             # Internal Style: Title ... | Date | Keywords
             st.markdown(f'''
