@@ -149,8 +149,9 @@ if not GENAI_API_KEY:
     pass
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600, persist="disk", experimental_allow_widgets=True, hash_funcs={pd.DataFrame: lambda _: None}, version=4)
 def translate_text(text, target='en'):
+    # Cache Version: v4 (Force Reload with Regex Fix)
     if not text: return ""
     max_retries = 3
     for attempt in range(max_retries):
@@ -184,8 +185,8 @@ def translate_text(text, target='en'):
                 result = response.json()
                 if 'candidates' in result and result['candidates']:
                     translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                    # Post-processing fix
-                    translated = translated.replace("Nicotine L", "Nicotinell").replace("nicotine l", "Nicotinell")
+                    # Post-processing fix (Regex)
+                    translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
                     return translated
             elif response.status_code == 429:
                 time.sleep(2)
@@ -205,7 +206,7 @@ def translate_text(text, target='en'):
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = translated.replace("Nicotine L", "Nicotinell").replace("nicotine l", "Nicotinell")
+        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
     except:
         return text
