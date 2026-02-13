@@ -149,7 +149,6 @@ EXCLUDED_KEYWORDS = [
     "엑셀세라퓨틱스", # Specific User Request (Irrelevant company)
     "엑셀세라퓨틱스", # Specific User Request (Irrelevant company)
     "동행재활요양병원", "요양병원", # User Request: Exclude Nursing Hospitals
-    "고양이", # User Request: Exclude 'Cat'
     # Stronger Exclusion (Syncd with Gemini Prompt)
     "임상1상", "임상2상", "임상3상", "임상시험 진행", "파이프라인 확대", # Clinical Pipeline (Low priority)
     "전임상", "초기 연구", "단순 건강", "건강 팁", "건강관리", "운동법", "식단", # Health/Research noise
