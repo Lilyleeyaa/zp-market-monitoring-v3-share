@@ -4,6 +4,9 @@ External Weekly Dashboard - 외부용 (경쟁사 제외)
 import streamlit as st
 import sys
 import os
+import requests
+import json
+import time
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

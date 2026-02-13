@@ -509,6 +509,11 @@ for cat in sorted_categories:
         keywords = row.get('keywords', '')
         url = row.get('url', '#')
         
+        # Translate if needed (Restored)
+        if use_english:
+            title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
+            keywords = keywords_trans
+        
         # Original Internal Format: Title ... | Date | Keywords
         st.markdown(f'''
         <div class="article-card">
