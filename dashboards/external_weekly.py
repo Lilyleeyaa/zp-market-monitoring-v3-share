@@ -118,7 +118,23 @@ def load_data_fresh():
         return pd.DataFrame(), str(e)
 
 df, filename = load_data_fresh()
-# st.success(f"DEBUG: Loaded {filename} with {len(df)} rows") # Hidden for prod
+
+# --- DEBUG: Verify Data Source & Content ---
+try:
+    cwd = os.getcwd()
+    abs_path = os.path.abspath(filename) if filename else "N/A"
+    cat_count = 0
+    if not df.empty:
+        cat_count = df.apply(lambda x: "고양이" in str(x.values), axis=1).sum()
+    
+    if cat_count > 0:
+        st.error(f"🚨 DEBUG: CATS DETECTED! Count={cat_count} | File={filename} | CWD={cwd}")
+    else:
+        # st.success(f"✅ Clean Data (No Cats). File={filename}") # Hidden if clean
+        pass
+except:
+    pass
+# -------------------------------------------
 
 if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
