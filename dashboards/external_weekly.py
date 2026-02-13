@@ -69,7 +69,8 @@ GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ
 PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단", "물류", "유통", "공급"]
 
 def is_noise_article(row):
-    text = str(row['title']) + " " + str(row.get('summary', ''))
+    # Check Title + Summary + Content (Body)
+    text = str(row['title']) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
     
     # 1. Check Explicit Exclusions
     for exc in EXCLUDED_KEYWORDS:
@@ -176,7 +177,10 @@ KEYWORD_MAPPING = {
     '항암제': 'Anticancer',
     '헬스케어': 'Healthcare',
     '협회': 'Association',
-    '희귀질환': 'Rare Disease'
+    '희귀질환': 'Rare Disease',
+    '지피테라퓨틱스': 'ZP Therapeutics',
+    '지피': 'ZP Therapeutics',
+    '지피 테라퓨틱스': 'ZP Therapeutics'
 }
 
 # ====================
