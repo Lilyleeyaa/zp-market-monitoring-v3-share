@@ -167,8 +167,10 @@ EXTRA_GLOSSARY = {
     "엡글리스": "Ebglyss",
     "상급종합병원": "Tertiary General Hospital",
     "건기식": "Health Functional Food",
-    "프리필드": "Pre-filled",
-    "쥴릭": "Zuellig", # Fix: Ensure Zuellig is not translated as Zulik
+    "쥴릭": "Zuellig", 
+    "쥴릭파마": "Zuellig Pharma",
+    "쥴릭코리아": "Zuellig Pharma Korea",
+    "쥴릭 파마": "Zuellig Pharma",
 }
 
 # API Key Security: Load from Streamlit Secrets or Environment Variable
@@ -185,6 +187,7 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 @st.cache_data(show_spinner=False)
 def translate_text(text, target='en'):
+    # Cache Version: v2 (Force Reload for Zuellig Fix)
     if not text: return ""
     max_retries = 3
     for attempt in range(max_retries):
