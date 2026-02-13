@@ -299,6 +299,17 @@ with f_col3:
 
 # Dynamic Keyword Filter Preparation
 temp_mask = pd.Series([True] * len(df))
+
+# Explicit Exclusion for External Dashboard (User Request)
+EXCLUDED_KEYWORDS_EXT = ["고양이"]
+if EXCLUDED_KEYWORDS_EXT:
+    pat_ext = '|'.join(EXCLUDED_KEYWORDS_EXT)
+    temp_mask = temp_mask & ~(
+        df['title'].str.contains(pat_ext, case=False, na=False) |
+        df['summary'].fillna('').str.contains(pat_ext, case=False, na=False) |
+        df['keywords'].fillna('').str.contains(pat_ext, case=False, na=False)
+    )
+
 if start_date and end_date:
     temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
 
