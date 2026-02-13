@@ -311,7 +311,7 @@ if EXCLUDED_KEYWORDS_EXT:
     )
 
 if start_date and end_date:
-    temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
+    temp_mask = temp_mask & (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
 
 if selected_categories:
     temp_mask = temp_mask & (df['category'].isin(selected_categories))
