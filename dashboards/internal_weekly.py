@@ -149,7 +149,7 @@ if not GENAI_API_KEY:
     pass
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
-@st.cache_data(show_spinner=False, ttl=3600, persist="disk", experimental_allow_widgets=True, hash_funcs={pd.DataFrame: lambda _: None}, version=4)
+@st.cache_data(show_spinner=False, ttl=3600)
 def translate_text(text, target='en'):
     # Cache Version: v4 (Force Reload with Regex Fix)
     if not text: return ""
