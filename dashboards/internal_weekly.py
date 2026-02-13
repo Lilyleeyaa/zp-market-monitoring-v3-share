@@ -155,6 +155,9 @@ def translate_text(text, target='en'):
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            from deep_translator import GoogleTranslator
+            
+            # 1. Try Gemini First (Better Context)
             full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
             glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
             
@@ -180,7 +183,10 @@ def translate_text(text, target='en'):
             if response.status_code == 200:
                 result = response.json()
                 if 'candidates' in result and result['candidates']:
-                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+                    translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                    # Post-processing fix
+                    translated = translated.replace("Nicotine L", "Nicotinell").replace("nicotine l", "Nicotinell")
+                    return translated
             elif response.status_code == 429:
                 time.sleep(2)
                 continue
@@ -189,6 +195,7 @@ def translate_text(text, target='en'):
         except Exception as e:
             break
             
+    # 2. Fallback to Google Translator (Deep Translator)
     try:
         from deep_translator import GoogleTranslator
         processed_text = text
@@ -197,7 +204,9 @@ def translate_text(text, target='en'):
         for kr_term in sorted_terms:
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-        return GoogleTranslator(source='ko', target=target).translate(processed_text)
+        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        translated = translated.replace("Nicotine L", "Nicotinell").replace("nicotine l", "Nicotinell")
+        return translated
     except:
         return text
 
