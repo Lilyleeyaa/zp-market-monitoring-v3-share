@@ -52,7 +52,7 @@ def get_weekly_date_range():
     return start_date, today
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_data():
+def load_data_fresh():
     try:
         # Path relative to dashboards/ folder
         base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "articles_raw")
@@ -74,7 +74,8 @@ def load_data():
     except Exception as e:
         return pd.DataFrame(), str(e)
 
-df, filename = load_data()
+df, filename = load_data_fresh()
+# st.success(f"DEBUG: Loaded {filename} with {len(df)} rows") # Hidden for prod
 
 if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
