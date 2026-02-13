@@ -168,6 +168,7 @@ EXTRA_GLOSSARY = {
     "상급종합병원": "Tertiary General Hospital",
     "건기식": "Health Functional Food",
     "프리필드": "Pre-filled",
+    "쥴릭": "Zuellig", # Fix: Ensure Zuellig is not translated as Zulik
 }
 
 # API Key Security: Load from Streamlit Secrets or Environment Variable
