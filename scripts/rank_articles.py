@@ -264,9 +264,9 @@ def rank_articles():
             try:
                 from gemini_filter import gemini_batch_deduplicate_and_score
                 
-                # Process top 100 candidates through Gemini (Top 100 by ScoreAG)
-                # Increased from 40 to 100 per user request to prevent missing important news
-                top_candidates = df_sorted.head(100).copy()
+                # Process top 30 candidates through Gemini (Business Optimization: Noise Reduction & API Limits)
+                # Reduced from 100 to 30 per user request (429 Error Fix)
+                top_candidates = df_sorted.head(30).copy()
                 
                 print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
                 filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
@@ -296,8 +296,8 @@ def rank_articles():
                     
                     # Merge back
                     # 1. Articles processed by Gemini
-                    # 2. Articles NOT processed (ranked 41+)
-                    remaining = df_sorted.iloc[40:] 
+                    # 2. Articles NOT processed (ranked 31+)
+                    remaining = df_sorted.iloc[30:] 
                     
                     df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
                     df_sorted = df_final.sort_values(by='final_score', ascending=False)
