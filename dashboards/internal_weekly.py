@@ -412,14 +412,15 @@ st.markdown("""
          line-height: normal;
     }
     
-    /* Article Card Styling (Restored) */
-    .article-card {
-        background-color: white;
-        border-left: 5px solid #0ABAB5;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        margin-bottom: 15px;
+    /* Container Box Styling (Robust Targeting for Card Design) */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.article-card-marker) {
+        border-color: transparent !important; /* Remove default grey border */
+        border-left: 5px solid #0ABAB5 !important; /* Teal Accent */
+        background-color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+        padding: 15px !important;
+        margin-bottom: 10px !important;
     }
 """, unsafe_allow_html=True)
 
@@ -584,32 +585,29 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Layout: Card (Left) + Buttons (Right) - Screenshot Style
-        col_card, col_like, col_dislike = st.columns([11, 0.5, 0.5])
-        
-        with col_card:
-            st.markdown(f'''
-            <div class="article-card">
-                <div style="font-size: 16px; line-height: 1.5; color: #333; margin-bottom: 5px;">
+        # Layout: Card Container (Bordered Box) - Single Like Button Inside
+        with st.container(border=True):
+             # Marker for CSS targeting (Hidden)
+             st.markdown('<div class="article-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
+             
+             # Header Row: Title/Info (Left) + Like Button (Right)
+             c_main, c_btn = st.columns([15, 1])
+             
+             with c_main:
+                 st.markdown(f'''
+                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
                     <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
-                </div>
-                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                 </div>
+                 <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
                     {summary}
-                </div>
-            </div>
-            ''', unsafe_allow_html=True)
-
-        with col_like:
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Spacer for alignment
-            if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-                try: save_feedback(row, 1); st.toast("Liked", icon="👍")
-                except: pass
-
-        with col_dislike:
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Spacer for alignment
-            if st.button("👎🏻", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
-                try: save_feedback(row, 0); st.toast("Disliked", icon="👎")
-                except: pass
+                 </div>
+                 ''', unsafe_allow_html=True)
+             
+             with c_btn:
+                 # Small, transparent Like button
+                 if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                    try: save_feedback(row, 1); st.toast("Saved", icon="👍")
+                    except: pass
 
 
