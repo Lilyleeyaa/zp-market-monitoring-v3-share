@@ -548,40 +548,39 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Original Internal Format: Title ... | Date | Keywords
-        # Row 1: Title + Meta + Buttons (Inline as requested)
-        h_col1, h_col2, h_col3 = st.columns([12, 1, 1])
+        # Layout: Card Content (Left) + Buttons (Right, Compact)
+        col_card, col_like, col_dislike = st.columns([11, 0.5, 0.5])
         
-        with h_col1:
+        with col_card:
+            # Reverted to original unified card design
             st.markdown(f'''
-            <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+            <div class="article-card" style="margin-bottom: 0px;">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+                </div>
+                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {summary}
+                </div>
             </div>
             ''', unsafe_allow_html=True)
-            
-        with h_col2:
-            st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True) # Tiny spacer
+
+        with col_like:
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Align with title
             if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
                try:
                    save_feedback(row, 1)
                    st.toast("Liked", icon="👍")
                except: pass
 
-        with h_col3:
-            st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True) # Tiny spacer
+        with col_dislike:
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Align with title
             if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
                try:
                    save_feedback(row, 0)
                    st.toast("Disliked", icon="👎")
                except: pass
 
-        # Row 2: Summary (Below) with indentation/styling to look unified
-        st.markdown(f'''
-        <div style="font-size: 14px; margin-top: 5px; color: #555; line-height: 1.6; border-left: 3px solid #0ABAB5; padding-left: 10px; margin-left: 2px;">
-            {summary}
-        </div>
-        <div style="margin-bottom: 15px;"></div>
-        ''', unsafe_allow_html=True)
+        st.write("") # Row spacer
 
 
