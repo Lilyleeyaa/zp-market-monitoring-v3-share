@@ -239,8 +239,14 @@ def save_feedback(row, label):
     
     try:
         # Get GitHub credentials from Streamlit secrets
-        gh_token = st.secrets.get("GITHUB_TOKEN", "")
-        gh_repo = st.secrets.get("GITHUB_REPO", "Lilyleeyaa/zp-market-monitoring-v3-share")
+        try:
+            gh_token = st.secrets["GITHUB_TOKEN"]
+        except:
+            gh_token = ""
+        try:
+            gh_repo = st.secrets["GITHUB_REPO"]
+        except:
+            gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row
@@ -680,7 +686,10 @@ for cat in sorted_categories:
         with c_btn:
             # Small, transparent Like button (Light Skin Tone to avoid Yellow)
             if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-                try: save_feedback(row, 1); st.toast("Saved", icon="👍")
-                except: pass
+                try:
+                    save_feedback(row, 1)
+                    st.toast("Saved!", icon="👍")
+                except Exception as e:
+                    st.toast(f"Error: {e}", icon="⚠️")
 
 
