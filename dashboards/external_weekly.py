@@ -91,15 +91,16 @@ def is_noise_article(row):
             
     return False
 
-# Configure Gemini API (Direct REST API for Python 3.8 compatibility)
-# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
-GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
-if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
-    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
-
-# Fallback for local testing if env var not set (User's key)
+# Configure Gemini API
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")
 if not GENAI_API_KEY:
-    GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+    try:
+        GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+    except:
+        GENAI_API_KEY = ""
+
+if not GENAI_API_KEY:
+    pass  # Translation will fail gracefully
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
@@ -162,8 +163,13 @@ def translate_text(text, target='en'):
         return GoogleTranslator(source='auto', target=target).translate(text)
     except:
         return text
+
+# ====================
+# Data Loading (Synced with Internal)
+# ====================
+@st.cache_data(ttl=60, show_spinner=False)
+def load_weekly_data():
     try:
-        # Path relative to dashboards/ folder
         base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "articles_raw")
         if not os.path.exists(base_dir):
             base_dir = "../data/articles_raw"
@@ -175,11 +181,16 @@ def translate_text(text, target='en'):
         latest_file = ranked_files[-1]
         df = pd.read_csv(latest_file, encoding='utf-8-sig')
         
-        # Date conversion
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
+
+        if 'category' not in df.columns:
+            df['category'] = 'General'
+
+        if 'keywords' not in df.columns:
+            df['keywords'] = ''
             
-        # --- Strict Filtering (Same as Internal) ---
+        # Noise Filter
         if not df.empty:
             df['is_noise'] = df.apply(is_noise_article, axis=1)
             df = df[~df['is_noise']]
@@ -188,8 +199,7 @@ def translate_text(text, target='en'):
     except Exception as e:
         return pd.DataFrame(), str(e)
 
-df, filename = load_data_fresh()
-# st.success(f"DEBUG: Loaded {filename} with {len(df)} rows") # Hidden for prod
+df, filename = load_weekly_data()
 
 if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
@@ -407,9 +417,10 @@ if selected_categories:
     temp_mask = temp_mask & (df['category'].isin(selected_categories))
 
 # Apply excluded keywords FIRST to the kw extraction source
-excluded_keywords_ext = get_excluded_keywords(access_level='external')
-if excluded_keywords_ext:
-    pat = '|'.join(excluded_keywords_ext)
+# Competitor keywords excluded from external dashboard
+COMPETITOR_KEYWORDS = ["대웅", "종근당", "한미약품", "유한양행", "녹십자", "일동제약", "보령", "동아ST", "JW중외", "광동제약"]
+if COMPETITOR_KEYWORDS:
+    pat = '|'.join(COMPETITOR_KEYWORDS)
     safe_kw_mask = ~(
         df['title'].str.contains(pat, case=False, na=False) |
         df['summary'].fillna('').str.contains(pat, case=False, na=False) |
@@ -452,7 +463,7 @@ with f_col6:
     show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
 
 # --- Logic Phase 1: Global Exclusion (External Security) ---
-excluded_keywords = get_excluded_keywords(access_level='external')
+excluded_keywords = COMPETITOR_KEYWORDS.copy()
 
 # User Request: Force Exclude 'Cat' in External Dashboard
 if "고양이" not in excluded_keywords:
