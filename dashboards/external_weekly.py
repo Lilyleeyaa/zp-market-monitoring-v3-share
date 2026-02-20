@@ -315,6 +315,8 @@ EXTRA_GLOSSARY = {
     "니코틴엘": "Nicotinell",
     "파슬로덱스": "Faslodex",
     "닥터레디": "Dr. Reddy's",
+    "HK이노엔": "HK InnoN",
+    "포시가": "Forxiga",
 }
 
 import re # For robust replacement
