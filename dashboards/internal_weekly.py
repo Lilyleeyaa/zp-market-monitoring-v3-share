@@ -406,6 +406,17 @@ st.markdown("""
     .stButton>button p {
          line-height: normal;
     }
+    
+    /* Container Box Styling (To mimic old Card Design) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid transparent !important; /* Reset default border */
+        border-left: 5px solid #0ABAB5 !important; /* Teal Accent */
+        background-color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+        padding: 10px !important;
+        margin-bottom: 10px !important;
+    }
 """, unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
