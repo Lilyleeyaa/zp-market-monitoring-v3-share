@@ -407,30 +407,8 @@ st.markdown("""
          line-height: normal;
     }
     
-    /* Container Box Styling (Robust Targeting for Card Design) */
-    /* Container Box Styling (Global Fix for Mobile) */
-    /* 1. Force container to be white with teal left border */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF !important; /* Force White */
-        border-left: 6px solid #0ABAB5 !important; /* Teal Bar */
-        border-top: none !important;
-        border-right: none !important;
-        border-bottom: none !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
-        padding: 0 !important;
-        margin-bottom: 20px !important;
-    }
-
-    /* 2. Make inner block transparent so white background shows */
-    [data-testid="stVerticalBlock"] {
-        background-color: transparent !important;
-    }
-
-    /* 3. Force dark text if dark mode is active */
-    .article-card, .stMarkdown p {
-        color: #333333 !important;
-    }
+    /* Card styling is now done via inline styles in HTML (immune to theme overrides) */
+    /* No stVerticalBlockBorderWrapper targeting needed anymore */
 """, unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
@@ -594,29 +572,33 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Layout: Card Container (Bordered Box) - Single Like Button Inside
-        with st.container(border=True):
-             # Marker for CSS targeting (Hidden)
-             st.markdown('<div class="article-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
-             
-             # Header Row: Title/Info (Left) + Like Button (Right)
-             c_main, c_btn = st.columns([15, 1])
-             
-             with c_main:
-                 st.markdown(f'''
-                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
+        # Layout: Pure HTML Card (Inline Styles - Cannot be overridden by theme)
+        c_card, c_btn = st.columns([15, 1])
+        
+        with c_card:
+            st.markdown(f'''
+            <div style="
+                background-color: #FFFFFF;
+                border-left: 6px solid #0ABAB5;
+                border-radius: 8px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                padding: 20px;
+                margin-bottom: 15px;
+            ">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
                     <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
                     <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
-                 </div>
-                 <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                </div>
+                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
                     {summary}
-                 </div>
-                 ''', unsafe_allow_html=True)
-             
-             with c_btn:
-                 # Small, transparent Like button (Light Skin Tone to avoid Yellow)
-                 if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-                    try: save_feedback(row, 1); st.toast("Saved", icon="👍")
-                    except: pass
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+        
+        with c_btn:
+            # Small, transparent Like button (Light Skin Tone to avoid Yellow)
+            if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                try: save_feedback(row, 1); st.toast("Saved", icon="👍")
+                except: pass
 
 
