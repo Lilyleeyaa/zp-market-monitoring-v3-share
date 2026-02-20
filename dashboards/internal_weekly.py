@@ -260,17 +260,7 @@ def save_feedback(row, label):
         new_line = f"{feedback_date},{c_url},{c_title},{c_category},{c_keywords},{c_score_ag},{label}"
         
         if not gh_token:
-            # Fallback: save locally if no GitHub token
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            labels_file = os.path.join(base_dir, "data", "labels", "feedback_log.csv")
-            os.makedirs(os.path.dirname(labels_file), exist_ok=True)
-            header = "feedback_date,url,title,category,keywords,score_ag,reward"
-            if not os.path.exists(labels_file):
-                with open(labels_file, "w", encoding="utf-8") as f:
-                    f.write(header + "\n")
-            with open(labels_file, "a", encoding="utf-8") as f:
-                f.write(new_line + "\n")
-            return
+            raise RuntimeError("GITHUB_TOKEN not set in Streamlit secrets!")
         
         # GitHub API: Get existing file (or create new)
         api_url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
@@ -307,10 +297,12 @@ def save_feedback(row, label):
         if put_resp.status_code in [200, 201]:
             print(f"[OK] Feedback saved to GitHub: {c_title[:40]}...")
         else:
-            print(f"[WARN] GitHub API error {put_resp.status_code}: {put_resp.text[:200]}")
+            raise RuntimeError(f"GitHub API {put_resp.status_code}: {put_resp.text[:300]}")
             
+    except RuntimeError:
+        raise  # Re-raise to show in toast
     except Exception as e:
-        print(f"Error saving feedback: {e}")
+        raise RuntimeError(f"save_feedback error: {e}")
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_article_batch(title, summary, keywords):  # Cache v8
