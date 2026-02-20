@@ -407,8 +407,20 @@ st.markdown("""
          line-height: normal;
     }
     
-    /* Card styling is now done via inline styles in HTML (immune to theme overrides) */
-    /* No stVerticalBlockBorderWrapper targeting needed anymore */
+    /* Remove white box wrapper around button */
+    .stButton {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Also remove any Streamlit container wrapper styling around the button column */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
 """, unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
