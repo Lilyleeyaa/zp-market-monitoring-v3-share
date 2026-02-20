@@ -407,14 +407,14 @@ st.markdown("""
          line-height: normal;
     }
     
-    /* Container Box Styling (To mimic old Card Design) */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        border: 1px solid transparent !important; /* Reset default border */
+    /* Container Box Styling (Robust Targeting for Card Design) */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.article-card-marker) {
+        border-color: transparent !important; /* Remove default grey border */
         border-left: 5px solid #0ABAB5 !important; /* Teal Accent */
         background-color: #ffffff !important;
         border-radius: 8px !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-        padding: 10px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+        padding: 15px !important;
         margin-bottom: 10px !important;
     }
 """, unsafe_allow_html=True)
@@ -582,6 +582,9 @@ for cat in sorted_categories:
         
         # Layout: Card Container (Bordered Box) - Buttons Inside
         with st.container(border=True):
+             # Marker for CSS targeting (Hidden)
+             st.markdown('<div class="article-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
+             
              # Row 1: Header + Buttons
              c_head, c_like, c_dislike = st.columns([11, 0.5, 0.5])
              
