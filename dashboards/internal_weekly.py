@@ -580,39 +580,18 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Layout: Card Container (Bordered Box) - Buttons Inside
-        with st.container(border=True):
-             # Marker for CSS targeting (Hidden)
-             st.markdown('<div class="article-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
-             
-             # Row 1: Header + Buttons
-             c_head, c_like, c_dislike = st.columns([11, 0.5, 0.5])
-             
-             with c_head:
-                 st.markdown(f'''
-                 <div style="margin-bottom: 5px;">
-                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                 </div>
-                 <div style="font-size: 12px; color: #888;">
-                    {date} | <span style="background-color: #E0F2F1; padding: 2px 6px; border-radius: 4px; color: #00695C;">{keywords}</span>
-                 </div>
-                 ''', unsafe_allow_html=True)
-             
-             with c_like:
-                 if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-                    try: save_feedback(row, 1); st.toast("Liked", icon="👍")
-                    except: pass
-                 
-             with c_dislike:
-                 if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
-                    try: save_feedback(row, 0); st.toast("Disliked", icon="👎")
-                    except: pass
-
-             # Row 2: Summary
-             st.markdown(f'''
-             <div style="font-size: 14px; color: #555; margin-top: 10px; line-height: 1.6;">
+        # Layout: Original HTML Card (No Buttons)
+        # Restored "Box Design" as requested
+        st.markdown(f'''
+        <div class="article-card">
+            <div style="font-size: 16px; line-height: 1.5; color: #333; margin-bottom: 5px;">
+                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                <div style="color: #666; font-size: 12px; margin-top: 4px;">{date} | <span style="background-color: #E0F2F1; padding: 2px 6px; border-radius: 4px; color: #00695C;">{keywords}</span></div>
+            </div>
+            <div style="font-size: 14px; margin-top: 10px; color: #555; line-height: 1.6;">
                 {summary}
-             </div>
-             ''', unsafe_allow_html=True)
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
 
 
