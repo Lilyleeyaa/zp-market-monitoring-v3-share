@@ -413,7 +413,8 @@ st.markdown("""
     }
     
     /* Container Box Styling (Robust Targeting for Card Design) */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.article-card-marker) {
+    /* Container Box Styling (Global Fix for Mobile) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
         border-color: transparent !important; /* Remove default grey border */
         border-left: 5px solid #0ABAB5 !important; /* Teal Accent */
         background-color: #ffffff !important;
