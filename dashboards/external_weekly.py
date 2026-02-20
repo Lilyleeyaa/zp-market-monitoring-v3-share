@@ -168,7 +168,7 @@ def translate_text(text, target='en'):
 # Data Loading (External - Competitor Excluded)
 # ====================
 # Competitor keywords to COMPLETELY exclude from external dashboard
-COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로", "백제약품"]
+COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로", "백제약품", "이지메디컴"]
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
