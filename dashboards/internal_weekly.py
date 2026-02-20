@@ -549,40 +549,39 @@ for cat in sorted_categories:
             keywords = keywords_trans
         
         # Original Internal Format: Title ... | Date | Keywords
-        # Layout: Card Content + Feedback Buttons (Right Aligned)
-        col_card, col_like, col_dislike = st.columns([10, 0.8, 0.8])
+        # Row 1: Title + Meta + Buttons (Inline as requested)
+        h_col1, h_col2, h_col3 = st.columns([12, 1, 1])
         
-        with col_card:
+        with h_col1:
             st.markdown(f'''
-            <div class="article-card">
-                <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
-                </div>
-                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {summary}
-                </div>
+            <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
             </div>
             ''', unsafe_allow_html=True)
-
-        with col_like:
-            # Vertical alignment spacer
-            st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="This is helpful"):
+            
+        with h_col2:
+            st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True) # Tiny spacer
+            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
                try:
                    save_feedback(row, 1)
-                   st.toast("Saved: Good article")
-               except Exception as e:
-                   st.error(f"Error: {e}")
+                   st.toast("Liked", icon="👍")
+               except: pass
 
-        with col_dislike:
-            # Vertical alignment spacer
-            st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="This is not helpful"):
+        with h_col3:
+            st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True) # Tiny spacer
+            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
                try:
                    save_feedback(row, 0)
-                   st.toast("Saved: Not helpful")
-               except Exception as e:
-                   st.error(f"Error: {e}")
+                   st.toast("Disliked", icon="👎")
+               except: pass
+
+        # Row 2: Summary (Below) with indentation/styling to look unified
+        st.markdown(f'''
+        <div style="font-size: 14px; margin-top: 5px; color: #555; line-height: 1.6; border-left: 3px solid #0ABAB5; padding-left: 10px; margin-left: 2px;">
+            {summary}
+        </div>
+        <div style="margin-bottom: 15px;"></div>
+        ''', unsafe_allow_html=True)
 
 
