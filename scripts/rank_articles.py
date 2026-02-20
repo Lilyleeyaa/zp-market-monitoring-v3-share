@@ -111,16 +111,16 @@ def rank_articles():
             print("\n[Step 5/6] Extracting features...")
             print("  - Loading SentenceTransformer...")
             sys.stdout.flush()
-            model_st = SentenceTransformer('all-MiniLM-L6-v2')
             
-            print(f"  - Encoding {len(df)} articles...")
-            sys.stdout.flush()
+            print("  - Encoding text features (jhgan/ko-sroberta-multitask)...")
+            # Using Korean-Specific Model
+            model_st = SentenceTransformer('jhgan/ko-sroberta-multitask')
             text_features = model_st.encode(
                 (df['title'] + " " + df['summary'].fillna('')).tolist(),
-                show_progress_bar=True
+                show_progress_bar=False
             )
             
-            # PCA: Encode 384 -> 64 dimensions (Load trained PCA)
+            # PCA: Encode 768 -> 128 dimensions (Load trained PCA)
             PCA_PATH = os.path.join(MODEL_DIR, "pca.pkl")
             if not os.path.exists(PCA_PATH):
                 print(f"[ERROR] PCA model not found at {PCA_PATH}")
@@ -129,7 +129,7 @@ def rank_articles():
             
             pca = joblib.load(PCA_PATH)
             
-            print("  - Reducing dimensions (PCA 384 -> 128)...")
+            print("  - Reducing dimensions (PCA 768 -> 128)...")
             text_features = pca.transform(text_features)
             
             print("  - Extracting metadata features...")
@@ -266,15 +266,15 @@ def rank_articles():
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
             
-            # 6. Target Bonus (Zuellig, DKSH, Price Cut, Reimbursement)
-            target_bonus = ["지오영", "쥴릭", "dksh", "약가 인하", "급여 등재", "zuellig"]
-            if any(k in text for k in target_bonus):
-                strategic_score += 2.0
-                
-            # 7. Specific Exclusion (User Request)
+            # 6. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
             if any(k in text for k in exclusion_keywords):
                 strategic_score -= 20.0 # Force remove
+                
+            # 7. Conditional Exclusion: Distribution + (Hospital & Bidding)
+            if row.get('category') == 'Distribution':
+                if '병원' in text and '입찰' in text:
+                    strategic_score -= 20.0 # Force remove (User Request)
             
             return max(0, strategic_score)
 

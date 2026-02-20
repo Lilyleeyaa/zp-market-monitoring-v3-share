@@ -99,8 +99,9 @@ def extract_features(df):
     """Extract features for LightGBM"""
     print("\n>>> Extracting Features...")
     
-    # Load sentence transformer
-    model_st = SentenceTransformer('all-MiniLM-L6-v2')
+    # Load sentence transformer (Korean-Specific Model)
+    print("  - Loading Korean embedding model (jhgan/ko-sroberta-multitask)...")
+    model_st = SentenceTransformer('jhgan/ko-sroberta-multitask')
     
     # Text embeddings
     print("  - Encoding text features...")
@@ -109,9 +110,9 @@ def extract_features(df):
         show_progress_bar=True
     )
     
-    # PCA: Encode 384 -> 128 dimensions (Increased capacity for better semantic separation)
+    # PCA: Encode 768 -> 128 dimensions (RoBERTa is 768d)
     from sklearn.decomposition import PCA
-    print("  - Reducing dimensions (PCA 384 -> 128)...")
+    print("  - Reducing dimensions (PCA 768 -> 128)...")
     pca = PCA(n_components=128, random_state=42)
     text_features = pca.fit_transform(text_embeddings)
     
