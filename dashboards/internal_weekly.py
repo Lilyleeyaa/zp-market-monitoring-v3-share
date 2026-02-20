@@ -409,16 +409,27 @@ st.markdown("""
     
     /* Container Box Styling (Robust Targeting for Card Design) */
     /* Container Box Styling (Global Fix for Mobile) */
-    /* Container Box Styling (Applying User's Preferred Card Design) */
+    /* 1. Force container to be white with teal left border */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF !important; /* Force White Background */
-        padding: 20px !important;
+        background-color: #FFFFFF !important; /* Force White */
+        border-left: 6px solid #0ABAB5 !important; /* Teal Bar */
+        border-top: none !important;
+        border-right: none !important;
+        border-bottom: none !important;
         border-radius: 8px !important;
-        margin-bottom: 15px !important;
-        
-        border: 1px solid transparent !important; /* Remove default border */
-        border-left: 6px solid #0ABAB5 !important; /* Thick Teal Accent */
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+        padding: 0 !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* 2. Make inner block transparent so white background shows */
+    [data-testid="stVerticalBlock"] {
+        background-color: transparent !important;
+    }
+
+    /* 3. Force dark text if dark mode is active */
+    .article-card, .stMarkdown p {
+        color: #333333 !important;
     }
 """, unsafe_allow_html=True)
 
