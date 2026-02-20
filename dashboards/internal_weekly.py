@@ -246,15 +246,19 @@ def save_feedback(row, label):
             raise RuntimeError("GITHUB_TOKEN missing from Streamlit secrets. Check secrets format (remove # comments, use quoted values).")
         file_path = "data/labels/feedback_log.csv"
         
-        # Prepare feedback row
+        # Prepare feedback row (use csv module for proper quoting)
+        import csv, io
         c_url = str(row.get('url', '')).strip()
-        c_title = str(row.get('title', '')).replace(",", " ").replace("\n", " ").strip()
+        c_title = str(row.get('title', '')).replace("\n", " ").strip()
         c_category = str(row.get('category', '')).strip()
         c_keywords = str(row.get('keywords', '')).strip()
         c_score_ag = str(row.get('score_ag', '')).strip()
         feedback_date = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        new_line = f"{feedback_date},{c_url},{c_title},{c_category},{c_keywords},{c_score_ag},{label}"
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
+        new_line = buf.getvalue().rstrip("\r\n")
         
         if not gh_token:
             raise RuntimeError("GITHUB_TOKEN not set in Streamlit secrets!")
