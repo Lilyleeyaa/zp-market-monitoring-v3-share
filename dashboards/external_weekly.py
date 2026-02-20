@@ -353,7 +353,7 @@ def translate_text(text, target='en'):
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
     except Exception as e:
         # 에러 내용을 session_state에 저장 (디버그용)

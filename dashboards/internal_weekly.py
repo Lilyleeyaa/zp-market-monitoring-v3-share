@@ -171,7 +171,7 @@ def translate_text(text, target='en'):
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
         import re
-        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
     except:
         return text
