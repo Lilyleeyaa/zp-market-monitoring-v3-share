@@ -238,36 +238,12 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        # Get GitHub credentials from Streamlit secrets
-        # Secrets may be nested under [auth] section in TOML
-        gh_token = ""
-        for key in ["GITHUB_TOKEN", "github_token"]:
-            try:
-                val = st.secrets[key]
-                if val:
-                    gh_token = val
-                    break
-            except:
-                pass
-            try:
-                val = st.secrets["auth"][key]
-                if val:
-                    gh_token = val
-                    break
-            except:
-                pass
+        # Get GitHub credentials from Streamlit secrets (top-level keys, no comments in TOML!)
+        gh_token = st.secrets.get("GITHUB_TOKEN", "")
+        gh_repo = st.secrets.get("GITHUB_REPO", "Lilyleeyaa/zp-market-monitoring-v3-share")
         
         if not gh_token:
-            available_keys = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else "unknown"
-            raise RuntimeError(f"GITHUB_TOKEN not found. Top-level keys: {available_keys}")
-        
-        try:
-            gh_repo = st.secrets["GITHUB_REPO"]
-        except:
-            try:
-                gh_repo = st.secrets["auth"]["GITHUB_REPO"]
-            except:
-                gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
+            raise RuntimeError("GITHUB_TOKEN missing from Streamlit secrets. Check secrets format (remove # comments, use quoted values).")
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row
