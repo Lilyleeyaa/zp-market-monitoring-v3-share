@@ -239,10 +239,21 @@ def save_feedback(row, label):
     
     try:
         # Get GitHub credentials from Streamlit secrets
-        try:
-            gh_token = st.secrets["GITHUB_TOKEN"]
-        except:
-            gh_token = ""
+        # Try multiple possible key name variations
+        gh_token = ""
+        for key in ["GITHUB_TOKEN", "github_token", "GithubToken", "Github_Token"]:
+            try:
+                val = st.secrets[key]
+                if val:
+                    gh_token = val
+                    break
+            except:
+                continue
+        
+        if not gh_token:
+            available_keys = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else "unknown"
+            raise RuntimeError(f"GITHUB_TOKEN not found in secrets. Available keys: {available_keys}")
+        
         try:
             gh_repo = st.secrets["GITHUB_REPO"]
         except:
