@@ -409,15 +409,16 @@ st.markdown("""
     
     /* Container Box Styling (Robust Targeting for Card Design) */
     /* Container Box Styling (Global Fix for Mobile) */
-    /* Container Box Styling (Global Fix) */
+    /* Container Box Styling (Applying User's Preferred Card Design) */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #ffffff !important;
-        border: 1px solid transparent !important;
-        border-left: 5px solid #0ABAB5 !important;
+        background-color: #FFFFFF !important; /* Force White Background */
+        padding: 20px !important;
         border-radius: 8px !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-        padding: 15px !important;
         margin-bottom: 15px !important;
+        
+        border: 1px solid transparent !important; /* Remove default border */
+        border-left: 6px solid #0ABAB5 !important; /* Thick Teal Accent */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
     }
 """, unsafe_allow_html=True)
 
