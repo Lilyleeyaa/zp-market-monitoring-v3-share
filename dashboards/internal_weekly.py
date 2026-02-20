@@ -379,12 +379,34 @@ st.markdown("""
     }
     
     /* Button Styles */
+    /* Button Styles - Ghost/Icon Style */
     .stButton>button {
+        background-color: transparent !important;
+        color: #0ABAB5 !important;
+        border: 1px solid #e0e0e0 !important; /* Very subtle border initially */
+        border-radius: 50% !important; /* Circle shape for icons */
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0px !important;
+        line-height: 30px !important; /* Center vertically */
+        font-size: 16px !important;
+        transition: all 0.2s ease-in-out;
+    }
+    .stButton>button:hover {
+        background-color: #E0F2F1 !important; /* Light teal hover */
+        border-color: #0ABAB5 !important;
+        color: #006666 !important;
+        transform: scale(1.1);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .stButton>button:active {
         background-color: #0ABAB5 !important;
         color: white !important;
-        border: none;
     }
-</style>
+    /* Hide the text if it spills or looks weird */
+    .stButton>button p {
+         line-height: normal;
+    }
 """, unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
