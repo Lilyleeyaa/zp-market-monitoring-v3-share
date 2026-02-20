@@ -165,8 +165,11 @@ def translate_text(text, target='en'):
         return text
 
 # ====================
-# Data Loading (Synced with Internal)
+# Data Loading (External - Competitor Excluded)
 # ====================
+# Competitor keywords to COMPLETELY exclude from external dashboard
+COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL"]
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
     try:
@@ -194,6 +197,16 @@ def load_weekly_data():
         if not df.empty:
             df['is_noise'] = df.apply(is_noise_article, axis=1)
             df = df[~df['is_noise']]
+        
+        # Competitor Filter (HARD EXCLUDE at load time)
+        if not df.empty and COMPETITOR_KEYWORDS:
+            comp_pattern = '|'.join(COMPETITOR_KEYWORDS)
+            comp_mask = (
+                df['title'].str.contains(comp_pattern, case=False, na=False) |
+                df['summary'].fillna('').str.contains(comp_pattern, case=False, na=False) |
+                df['keywords'].fillna('').str.contains(comp_pattern, case=False, na=False)
+            )
+            df = df[~comp_mask]
             
         return df, os.path.basename(latest_file)
     except Exception as e:
