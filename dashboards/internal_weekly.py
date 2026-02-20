@@ -380,29 +380,34 @@ st.markdown("""
     
     /* Button Styles */
     /* Button Styles - Ghost/Icon Style */
+    /* Button Styles - Pure Icon Style (No Border) */
     .stButton>button {
         background-color: transparent !important;
-        color: #cfcfcf !important; /* Lighter/Whitish Grey */
-        border: 1px solid transparent !important; /* No border initially */
-        border-radius: 50% !important;
-        width: 30px !important;
-        height: 30px !important;
+        color: inherit !important;
+        border: none !important;
+        border-radius: 0px !important;
         padding: 0px !important;
-        line-height: 30px !important;
-        font-size: 14px !important;
-        transition: all 0.2s ease-in-out;
+        font-size: 20px !important;
+        line-height: 1 !important;
+        transition: transform 0.2s;
+        height: auto !important;
+        min-height: 0px !important;
+        box-shadow: none !important;
     }
     .stButton>button:hover {
-        background-color: #f5f5f5 !important;
-        color: #0ABAB5 !important; /* Teal on hover */
-        border: 1px solid #0ABAB5 !important;
-        transform: scale(1.1);
+        background-color: transparent !important;
+        color: inherit !important;
+        border: none !important;
+        transform: scale(1.2);
     }
     .stButton>button:active {
-        background-color: #0ABAB5 !important;
-        color: white !important;
+        transform: scale(0.95);
+        background-color: transparent !important;
     }
-    /* Hide the text if it spills or looks weird */
+    .stButton>button:focus {
+        box-shadow: none !important;
+        outline: none !important;
+    }
     .stButton>button p {
          line-height: normal;
     }
@@ -580,18 +585,38 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Layout: Original HTML Card (No Buttons)
-        # Restored "Box Design" as requested
-        st.markdown(f'''
-        <div class="article-card">
-            <div style="font-size: 16px; line-height: 1.5; color: #333; margin-bottom: 5px;">
-                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                <div style="color: #666; font-size: 12px; margin-top: 4px;">{date} | <span style="background-color: #E0F2F1; padding: 2px 6px; border-radius: 4px; color: #00695C;">{keywords}</span></div>
-            </div>
-            <div style="font-size: 14px; margin-top: 10px; color: #555; line-height: 1.6;">
+        # Layout: Card Container (Bordered Box) - Buttons Inside
+        with st.container(border=True):
+             # Marker for CSS targeting (Hidden)
+             st.markdown('<div class="article-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
+             
+             # Row 1: Header + Buttons
+             c_head, c_like, c_dislike = st.columns([11, 0.5, 0.5])
+             
+             with c_head:
+                 # Restored plain Date/Keyword design
+                 st.markdown(f'''
+                 <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
+                 </div>
+                 ''', unsafe_allow_html=True)
+             
+             with c_like:
+                 if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                    try: save_feedback(row, 1); st.toast("Liked", icon="👍")
+                    except: pass
+                 
+             with c_dislike:
+                 if st.button("👎🏻", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
+                    try: save_feedback(row, 0); st.toast("Disliked", icon="👎")
+                    except: pass
+
+             # Row 2: Summary
+             st.markdown(f'''
+             <div style="font-size: 14px; color: #555; margin-top: 8px; line-height: 1.6;">
                 {summary}
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+             </div>
+             ''', unsafe_allow_html=True)
 
 
