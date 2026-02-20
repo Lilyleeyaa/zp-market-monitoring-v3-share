@@ -63,7 +63,7 @@ EXCLUDED_KEYWORDS = [
     "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
     "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
     "채용", "신입사원", "공채", "원서접수", "고양이",
-    "음식", "1인분", "문여는", "대전시장"
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스"
 ]
 
 GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
@@ -239,43 +239,13 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_text(text, target='en'):
-    # Cache Version: v7 (Gemini 주석처리 - quota 소진, deep_translator 즉시 실행)
+    # Cache Version: v8 (error capture)
     if not text: return ""
     
     full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
 
     # ── Gemini 번역 (quota 소진 시 주석 해제) ──────────────────────────
-    # glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-    # prompt = f"""
-    # You are a professional pharmaceutical translator.
-    # Translate the following Korean text to English.
-    # Rules:
-    # 1. Maintain professional industry terminology.
-    # 2. Use the specific glossary below for strict term matching:
-    # {glossary_context}
-    # Text to translate: "{text}"
-    # Output only the translated English text, no explanations.
-    # """
-    # payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    # headers = {'Content-Type': 'application/json'}
-    # wait = 2
-    # for attempt in range(3):
-    #     try:
-    #         response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=15)
-    #         if response.status_code == 200:
-    #             result = response.json()
-    #             if 'candidates' in result and result['candidates']:
-    #                 translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
-    #                 translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-    #                 return translated
-    #         elif response.status_code == 429:
-    #             time.sleep(wait)
-    #             wait *= 2
-    #             continue
-    #         else:
-    #             break
-    #     except Exception:
-    #         break
+    # [주석처리 유지 - quota 소진]
     # ── Gemini 끝 ────────────────────────────────────────────────────────
 
     # deep_translator (Google Translate) + glossary 치환
@@ -289,11 +259,14 @@ def translate_text(text, target='en'):
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
         translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
-    except Exception:
-        return text
+    except Exception as e:
+        # 에러 내용을 session_state에 저장 (디버그용)
+        if 'translation_error' not in st.session_state:
+            st.session_state['translation_error'] = str(e)
+        return text  # 원본 반환
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def translate_article_batch(title, summary, keywords):  # Cache v6
+def translate_article_batch(title, summary, keywords):  # Cache v8
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
@@ -340,6 +313,10 @@ with f_col2:
 with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
+
+# [DEBUG] Translation error display
+if st.session_state.get('translation_error'):
+    st.warning(f"⚠️ Translation error: {st.session_state['translation_error']}")
 
 # Dynamic Keyword Filter Preparation
 temp_mask = pd.Series([True] * len(df))
