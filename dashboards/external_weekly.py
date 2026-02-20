@@ -313,6 +313,8 @@ EXTRA_GLOSSARY = {
     "쥴릭코리아": "Zuellig Pharma Korea",
     "쥴릭 파마": "Zuellig Pharma",
     "니코틴엘": "Nicotinell",
+    "파슬로덱스": "Faslodex",
+    "닥터레디": "Dr. Reddy's",
 }
 
 import re # For robust replacement

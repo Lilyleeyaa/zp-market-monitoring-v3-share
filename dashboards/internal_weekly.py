@@ -75,6 +75,8 @@ EXTRA_GLOSSARY = {
     "건기식": "Health Functional Food",
     "프리필드": "Pre-filled",
     "니코틴엘": "Nicotinell",
+    "파슬로덱스": "Faslodex",
+    "닥터레디": "Dr. Reddy's",
 }
 
 KEYWORD_MAPPING = {
