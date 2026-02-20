@@ -219,7 +219,9 @@ import sys
 # sys.stdout.reconfigure(encoding='utf-8')
 
 # Configure Gemini API (Direct REST API for Python 3.8 compatibility)
-GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")
+if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
 @st.cache_data(show_spinner=False)
@@ -338,7 +340,8 @@ if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
 
 # Fallback for local testing if env var not set (User's key)
 if not GENAI_API_KEY:
-    GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+    # Hardcoded key removed for security
+    pass
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 

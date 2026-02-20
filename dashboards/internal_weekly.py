@@ -93,13 +93,14 @@ KEYWORD_MAPPING = {
 # ====================
 # Configure Gemini API (Direct REST API for Python 3.8 compatibility)
 # User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
+# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
 GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
 if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
     GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
 
-# Fallback for local testing if env var not set (User's key)
+# Fallback: Removed hardcoded key for security
 if not GENAI_API_KEY:
-    GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+    pass # API calls will fail gracefully or use fallback logic
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
