@@ -336,14 +336,8 @@ st.markdown("""
     }
     
     /* Article Card Styles */
-    .article-card {
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        background-color: #ffffff; /* White card */
-        border-left: 5px solid #0ABAB5; /* Tiffany Blue Accent */
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
+    /* Article Card Styling matches container below */
+    /* .article-card removed (Styling applied via stVerticalBlockBorderWrapper) */
     
     .article-title {
         font-size: 18px;
@@ -414,14 +408,15 @@ st.markdown("""
     
     /* Container Box Styling (Robust Targeting for Card Design) */
     /* Container Box Styling (Global Fix for Mobile) */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: transparent !important; /* Remove default grey border */
-        border-left: 5px solid #0ABAB5 !important; /* Teal Accent */
+    /* Container Box Styling (Global Fix) */
+    [data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #ffffff !important;
+        border: 1px solid transparent !important;
+        border-left: 5px solid #0ABAB5 !important;
         border-radius: 8px !important;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
         padding: 15px !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 15px !important;
     }
 """, unsafe_allow_html=True)
 
