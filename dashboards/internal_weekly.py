@@ -217,21 +217,78 @@ def has_internal_keyword(row_keywords):
 
 def save_feedback(row, label):
     """
-    Save feedback to data/labels/labels_master.csv
-    label: 1 = Like, 0 = Dislike
+    Save feedback to GitHub repo via REST API (persistent across Streamlit Cloud reboots).
+    Appends to data/labels/feedback_log.csv with url as merge key.
+    label: 1 = Like (reward), 0 = Dislike
     """
+    import base64
+    from datetime import datetime
+    
     try:
-        # Construct path relative to this script
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        labels_file = os.path.join(base_dir, "data", "labels", "labels_master.csv")
-        os.makedirs(os.path.dirname(labels_file), exist_ok=True)
+        # Get GitHub credentials from Streamlit secrets
+        gh_token = st.secrets.get("GITHUB_TOKEN", "")
+        gh_repo = st.secrets.get("GITHUB_REPO", "Lilyleeyaa/zp-market-monitoring-v3-share")
+        file_path = "data/labels/feedback_log.csv"
         
-        # Prepare content
-        c_title = str(row['title']).replace(",", " ").replace("\n", " ").strip()
-        c_summary = str(row.get('summary', '')).replace(",", " ").replace("\n", " ").strip()
+        # Prepare feedback row
+        c_url = str(row.get('url', '')).strip()
+        c_title = str(row.get('title', '')).replace(",", " ").replace("\n", " ").strip()
+        c_category = str(row.get('category', '')).strip()
+        c_keywords = str(row.get('keywords', '')).strip()
+        c_score_ag = str(row.get('score_ag', '')).strip()
+        feedback_date = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        with open(labels_file, "a", encoding="utf-8") as f:
-            f.write(f"\n{c_title},{c_summary},{label}")
+        new_line = f"{feedback_date},{c_url},{c_title},{c_category},{c_keywords},{c_score_ag},{label}"
+        
+        if not gh_token:
+            # Fallback: save locally if no GitHub token
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            labels_file = os.path.join(base_dir, "data", "labels", "feedback_log.csv")
+            os.makedirs(os.path.dirname(labels_file), exist_ok=True)
+            header = "feedback_date,url,title,category,keywords,score_ag,reward"
+            if not os.path.exists(labels_file):
+                with open(labels_file, "w", encoding="utf-8") as f:
+                    f.write(header + "\n")
+            with open(labels_file, "a", encoding="utf-8") as f:
+                f.write(new_line + "\n")
+            return
+        
+        # GitHub API: Get existing file (or create new)
+        api_url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
+        headers = {
+            "Authorization": f"Bearer {gh_token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        resp = requests.get(api_url, headers=headers)
+        
+        if resp.status_code == 200:
+            # File exists — append to it
+            file_data = resp.json()
+            existing_content = base64.b64decode(file_data["content"]).decode("utf-8")
+            updated_content = existing_content.rstrip("\n") + "\n" + new_line + "\n"
+            sha = file_data["sha"]
+        else:
+            # File doesn't exist — create with header
+            header = "feedback_date,url,title,category,keywords,score_ag,reward"
+            updated_content = header + "\n" + new_line + "\n"
+            sha = None
+        
+        # Commit to GitHub
+        payload = {
+            "message": f"Feedback: {c_title[:40]}... ({feedback_date})",
+            "content": base64.b64encode(updated_content.encode("utf-8")).decode("utf-8"),
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+        
+        put_resp = requests.put(api_url, headers=headers, json=payload)
+        
+        if put_resp.status_code in [200, 201]:
+            print(f"[OK] Feedback saved to GitHub: {c_title[:40]}...")
+        else:
+            print(f"[WARN] GitHub API error {put_resp.status_code}: {put_resp.text[:200]}")
             
     except Exception as e:
         print(f"Error saving feedback: {e}")
