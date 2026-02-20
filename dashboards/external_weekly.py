@@ -62,7 +62,8 @@ EXCLUDED_KEYWORDS = [
     "주가", "주식", "목표주가", "특징주", "급등",
     "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
     "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
-    "채용", "신입사원", "공채", "원서접수", "고양이"
+    "채용", "신입사원", "공채", "원서접수", "고양이",
+    "음식", "1인분", "문여는", "대전시장"
 ]
 
 GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
@@ -234,58 +235,53 @@ except:
 if not GENAI_API_KEY:
     # Placeholder for local development if secrets not set (Translation will fail gracefully)
     pass
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GENAI_API_KEY}"
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600)
 def translate_text(text, target='en'):
-    # Cache Version: v4 (Force Reload for Nicotinell Regex Fix)
+    # Cache Version: v7 (Gemini 주석처리 - quota 소진, deep_translator 즉시 실행)
     if not text: return ""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            # 1. Try Gemini First (Better Context)
-            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-            
-            prompt = f"""
-            You are a professional pharmaceutical translator. 
-            Translate the following Korean text to English.
-            
-            Rules:
-            1. Maintain professional industry terminology.
-            2. Use the specific glossary below for strict term matching:
-            {glossary_context}
-            
-            Text to translate:
-            "{text}"
-            
-            Output only the translated English text, no explanations.
-            """
-            
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if 'candidates' in result and result['candidates']:
-                    translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                    # Post-processing fix
-                    translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-                    return translated
-            elif response.status_code == 429:
-                time.sleep(2)
-                continue
-            else:
-                break
-        except Exception as e:
-            break
-            
-    # 2. Fallback to Google Translator (Deep Translator)
+    
+    full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+
+    # ── Gemini 번역 (quota 소진 시 주석 해제) ──────────────────────────
+    # glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+    # prompt = f"""
+    # You are a professional pharmaceutical translator.
+    # Translate the following Korean text to English.
+    # Rules:
+    # 1. Maintain professional industry terminology.
+    # 2. Use the specific glossary below for strict term matching:
+    # {glossary_context}
+    # Text to translate: "{text}"
+    # Output only the translated English text, no explanations.
+    # """
+    # payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    # headers = {'Content-Type': 'application/json'}
+    # wait = 2
+    # for attempt in range(3):
+    #     try:
+    #         response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=15)
+    #         if response.status_code == 200:
+    #             result = response.json()
+    #             if 'candidates' in result and result['candidates']:
+    #                 translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
+    #                 translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
+    #                 return translated
+    #         elif response.status_code == 429:
+    #             time.sleep(wait)
+    #             wait *= 2
+    #             continue
+    #         else:
+    #             break
+    #     except Exception:
+    #         break
+    # ── Gemini 끝 ────────────────────────────────────────────────────────
+
+    # deep_translator (Google Translate) + glossary 치환
     try:
         from deep_translator import GoogleTranslator
         processed_text = text
-        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
         sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
         for kr_term in sorted_terms:
             if kr_term in processed_text:
@@ -293,11 +289,11 @@ def translate_text(text, target='en'):
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
         translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
-    except:
+    except Exception:
         return text
 
-@st.cache_data(show_spinner=False)
-def translate_article_batch(title, summary, keywords):
+@st.cache_data(show_spinner=False, ttl=3600)
+def translate_article_batch(title, summary, keywords):  # Cache v6
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)

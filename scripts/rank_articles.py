@@ -253,61 +253,44 @@ def rank_articles():
         else:
             df_top20_display = df_sorted.head(20)
         
-        # Step 7: Gemini Deduplication & Strategic Scoring (Always Run if Key Exists)
-        print("\n[Step 7/7] Applying Gemini filter...")
-        
-        # Check API Key availability
-        gemini_key = os.getenv('GENAI_API_KEY')
-        if not gemini_key:
-            print("  [WARNING] GENAI_API_KEY not found. Skipping Gemini filter.")
-        else:
-            try:
-                from gemini_filter import gemini_batch_deduplicate_and_score
-                
-                # Process top 30 candidates through Gemini (Business Optimization: Noise Reduction & API Limits)
-                # Reduced from 100 to 30 per user request (429 Error Fix)
-                top_candidates = df_sorted.head(30).copy()
-                
-                print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
-                filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
-                
-                if filtered_candidates is not None and not filtered_candidates.empty:
-                    # Update scores based on Gemini assessment
-                    # If gemini_score >= 8: Bonus +2.0
-                    # If gemini_score <= 2: Penalty -5.0 (Effectively remove)
-                    
-                    def apply_gemini_impact(row):
-                        g_score = row.get('gemini_score', 0)
-                        current_score = row.get('final_score', 0)
-                        
-                        if g_score >= 8:
-                            return min(current_score * 1.5, 1.0) # Boost high relevance
-                        elif g_score >= 6:
-                            return min(current_score * 1.2, 1.0)
-                        elif g_score <= 2:
-                            return 0.0 # Remove noise (Awards, etc.)
-                        else:
-                            return current_score
-                            
-                    filtered_candidates['final_score'] = filtered_candidates.apply(apply_gemini_impact, axis=1)
-                    
-                    # Remove duplicates and low scores
-                    filtered_candidates = filtered_candidates[filtered_candidates['final_score'] > 0]
-                    
-                    # Merge back
-                    # 1. Articles processed by Gemini
-                    # 2. Articles NOT processed (ranked 31+)
-                    remaining = df_sorted.iloc[30:] 
-                    
-                    df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
-                    df_sorted = df_final.sort_values(by='final_score', ascending=False)
-                    print(f"  [OK] Gemini filtering complete. Top score: {df_sorted['final_score'].max():.2f}")
-                    
-            except ImportError:
-                print("  [ERROR] Could not import gemini_filter. Check scripts/gemini_filter.py")
-            except Exception as e:
-                print(f"  [ERROR] Gemini filter failed: {str(e)}")
-                print("  [INFO] Continuing with LGBM scores only")
+        # Step 7: Gemini Deduplication & Strategic Scoring
+        # ── Gemini 필터 주석처리 (API quota 절약) ────────────────────────────
+        # Gemini quota가 복구되면 아래 주석을 해제하세요.
+        # Daily crawl에서 매일 ~6회 API 호출로 quota 소진 → 번역까지 영향
+        #
+        # gemini_key = os.getenv('GENAI_API_KEY')
+        # if not gemini_key:
+        #     print("  [WARNING] GENAI_API_KEY not found. Skipping Gemini filter.")
+        # else:
+        #     try:
+        #         from gemini_filter import gemini_batch_deduplicate_and_score
+        #         top_candidates = df_sorted.head(30).copy()
+        #         print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
+        #         filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
+        #         if filtered_candidates is not None and not filtered_candidates.empty:
+        #             def apply_gemini_impact(row):
+        #                 g_score = row.get('gemini_score', 0)
+        #                 current_score = row.get('final_score', 0)
+        #                 if g_score >= 8:
+        #                     return min(current_score * 1.5, 1.0)
+        #                 elif g_score >= 6:
+        #                     return min(current_score * 1.2, 1.0)
+        #                 elif g_score <= 2:
+        #                     return 0.0
+        #                 else:
+        #                     return current_score
+        #             filtered_candidates['final_score'] = filtered_candidates.apply(apply_gemini_impact, axis=1)
+        #             filtered_candidates = filtered_candidates[filtered_candidates['final_score'] > 0]
+        #             remaining = df_sorted.iloc[30:]
+        #             df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
+        #             df_sorted = df_final.sort_values(by='final_score', ascending=False)
+        #             print(f"  [OK] Gemini filtering complete. Top score: {df_sorted['final_score'].max():.2f}")
+        #     except ImportError:
+        #         print("  [ERROR] Could not import gemini_filter.")
+        #     except Exception as e:
+        #         print(f"  [ERROR] Gemini filter failed: {str(e)}")
+        # ── Gemini 끝 ─────────────────────────────────────────────────────────
+        print("\n[Step 7/7] Gemini filter skipped (quota 절약 모드) - LightGBM scores used")
         
         # Update display list with new sorted top 20
         df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
