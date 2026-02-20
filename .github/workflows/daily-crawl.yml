@@ -1,9 +1,9 @@
 name: Daily Crawl and Rank
 
 on:
-  schedule:
-    # 매일 06:00 KST (UTC 21:00 전날)
-    - cron: '0 21 * * *'
+  # schedule: DISABLED
+  #   # 매일 06:00 KST (UTC 21:00 전날)
+  #   - cron: '0 21 * * *'
   
   # 수동 실행 가능
   workflow_dispatch:
