@@ -91,6 +91,77 @@ KEYWORD_MAPPING = {
 # ====================
 # Filter Logic Definitions (Global)
 # ====================
+# Configure Gemini API (Direct REST API for Python 3.8 compatibility)
+# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
+GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
+if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+
+# Fallback for local testing if env var not set (User's key)
+if not GENAI_API_KEY:
+    GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+
+def translate_text(text, target='en'):
+    if not text: return ""
+    
+    # 1. Try Gemini API first (High Quality) with Retry Logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Construct explicit prompt with glossary context
+            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+            
+            prompt = f"""
+            You are a professional pharmaceutical translator. 
+            Translate the following Korean text to English.
+            
+            Rules:
+            1. Maintain professional industry terminology.
+            2. Use the specific glossary below for strict term matching:
+            {glossary_context}
+            
+            Text to translate:
+            "{text}"
+            
+            Output only the translated English text, no explanations.
+            """
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            elif response.status_code == 429:
+                if attempt < max_retries - 1:
+                    time.sleep(2) # Wait 2s before retry
+                    continue
+            else:
+                print(f"[Gemini API Error] {response.status_code}: {response.text}")
+                break 
+                
+        except Exception as e:
+            print(f"[Gemini Exception] {e}")
+            break
+            
+    # 2. Fallback to Google Translator logic... (Keep existing fallback if feasible or just return empty/original)
+    # Reusing the existing fallback logic from the user's code if present, or just returning simpler fallback
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source='auto', target=target).translate(text)
+    except:
+        return text
+
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 
 EXCLUDED_KEYWORDS = [
@@ -141,44 +212,28 @@ def has_internal_keyword(row_keywords):
             return True
     return False
 
-# API Key Security: Load from Streamlit Secrets or Environment Variable
-try:
-    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
-except:
-    import os
-    GENAI_API_KEY = os.getenv("GENAI_API_KEY", "")
+# Duplicate translation logic removed. Using the function defined above.
 
-if not GENAI_API_KEY:
-    # Placeholder for local development if secrets not set (Translation will fail gracefully)
-    pass
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GENAI_API_KEY}"
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def translate_text(text, target='en'):
-    # Cache Version: v8 (error capture)
-    if not text: return ""
-    
-    full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-
-    # ── Gemini 번역 (quota 소진 시 주석 해제) ──────────────────────────
-    # [주석처리 유지 - quota 소진]
-    # ── Gemini 끝 ────────────────────────────────────────────────────────
-
-    # deep_translator (Google Translate) + glossary 치환
+def save_feedback(row, label):
+    """
+    Save feedback to data/labels/labels_master.csv
+    label: 1 = Like, 0 = Dislike
+    """
     try:
-        from deep_translator import GoogleTranslator
-        processed_text = text
-        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
-        for kr_term in sorted_terms:
-            if kr_term in processed_text:
-                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-        return translated
+        # Construct path relative to this script
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        labels_file = os.path.join(base_dir, "data", "labels", "labels_master.csv")
+        os.makedirs(os.path.dirname(labels_file), exist_ok=True)
+        
+        # Prepare content
+        c_title = str(row['title']).replace(",", " ").replace("\n", " ").strip()
+        c_summary = str(row.get('summary', '')).replace(",", " ").replace("\n", " ").strip()
+        
+        with open(labels_file, "a", encoding="utf-8") as f:
+            f.write(f"\n{c_title},{c_summary},{label}")
+            
     except Exception as e:
-        if 'translation_error' not in st.session_state:
-            st.session_state['translation_error'] = str(e)
-        return text
+        print(f"Error saving feedback: {e}")
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_article_batch(title, summary, keywords):  # Cache v8
@@ -505,5 +560,22 @@ for cat in sorted_categories:
             </div>
         </div>
         ''', unsafe_allow_html=True)
+
+        # Feedback Buttons (Directly below card)
+        fb_col1, fb_col2, fb_col3 = st.columns([1, 1, 15])
+        with fb_col1:
+            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}"):
+               try:
+                   save_feedback(row, 1)
+                   st.toast("Feedback Saved: Like")
+               except Exception as e:
+                   st.error(f"Error: {e}")
+        with fb_col2:
+            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}"):
+               try:
+                   save_feedback(row, 0)
+                   st.toast("Feedback Saved: Dislike")
+               except Exception as e:
+                   st.error(f"Error: {e}")
 
 

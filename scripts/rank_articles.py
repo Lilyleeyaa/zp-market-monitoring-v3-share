@@ -266,12 +266,24 @@ def rank_articles():
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
             
-            # 6. Specific Exclusion (User Request)
+            # 7. Strategic Focus Keywords (+3.0) - High Priority Topics for this week
+            # These are not permanent rules but "Current Focus" as requested by user.
+            strategic_focus = [
+                "릭시아나", "lixiana", "파슬로덱스", "faslodex", "블루엠텍", "bluemtech", 
+                "위고비", "wegovy", "마운자로", "mounjaro", "아토젯", "atozet",
+                "hk이노엔", "hk inno.n", "삼진제약", "samjin", "닥터 레디스", "dr. reddy",
+                "불임", "난임", "infertility", "항암", "anticancer", "여성암",
+                "최대 실적", "최대 매출", "1조 클럽", "매출 1조"
+            ]
+            if any(k in text for k in strategic_focus):
+                strategic_score += 3.0
+
+            # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
             if any(k in text for k in exclusion_keywords):
                 strategic_score -= 20.0 # Force remove
                 
-            # 7. Conditional Exclusion: Distribution + (Hospital & Bidding)
+            # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
             if row.get('category') == 'Distribution':
                 if '병원' in text and '입찰' in text:
                     strategic_score -= 20.0 # Force remove (User Request)
@@ -309,11 +321,16 @@ def rank_articles():
         balanced_selection = []
         categories = df['category'].unique()
         
-        # First pass: Top 4 from each major category (Reverted to 4 as per user request - Safety Net)
-        for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
+        # First pass: Top 4 from Distribution/Zuellig/BD, but limit Client to 2
+        for cat in ['Distribution', 'Zuellig', 'BD']:
             if cat in categories:
                 cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
                 balanced_selection.append(cat_articles)
+        
+        # Limit Client category to Top 2 to avoid "trash" articles
+        if 'Client' in categories:
+            client_articles = df_sorted[df_sorted['category'] == 'Client'].head(2)
+            balanced_selection.append(client_articles)
         
         # Second pass: Top 1-2 from other categories
         for cat in categories:
@@ -337,47 +354,11 @@ def rank_articles():
         else:
             df_top20_display = df_sorted.head(20)
         
-        # Step 7: Gemini Deduplication & Strategic Scoring
-        # ── Gemini 필터 주석처리 (API quota 절약) ────────────────────────────
-        # Gemini quota가 복구되면 아래 주석을 해제하세요.
-        # Daily crawl에서 매일 ~6회 API 호출로 quota 소진 → 번역까지 영향
-        #
-        # gemini_key = os.getenv('GENAI_API_KEY')
-        # if not gemini_key:
-        #     print("  [WARNING] GENAI_API_KEY not found. Skipping Gemini filter.")
-        # else:
-        #     try:
-        #         from gemini_filter import gemini_batch_deduplicate_and_score
-        #         top_candidates = df_sorted.head(30).copy()
-        #         print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
-        #         filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
-        #         if filtered_candidates is not None and not filtered_candidates.empty:
-        #             def apply_gemini_impact(row):
-        #                 g_score = row.get('gemini_score', 0)
-        #                 current_score = row.get('final_score', 0)
-        #                 if g_score >= 8:
-        #                     return min(current_score * 1.5, 1.0)
-        #                 elif g_score >= 6:
-        #                     return min(current_score * 1.2, 1.0)
-        #                 elif g_score <= 2:
-        #                     return 0.0
-        #                 else:
-        #                     return current_score
-        #             filtered_candidates['final_score'] = filtered_candidates.apply(apply_gemini_impact, axis=1)
-        #             filtered_candidates = filtered_candidates[filtered_candidates['final_score'] > 0]
-        #             remaining = df_sorted.iloc[30:]
-        #             df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
-        #             df_sorted = df_final.sort_values(by='final_score', ascending=False)
-        #             print(f"  [OK] Gemini filtering complete. Top score: {df_sorted['final_score'].max():.2f}")
-        #     except ImportError:
-        #         print("  [ERROR] Could not import gemini_filter.")
-        #     except Exception as e:
-        #         print(f"  [ERROR] Gemini filter failed: {str(e)}")
-        # ── Gemini 끝 ─────────────────────────────────────────────────────────
-        print("\n[Step 7/7] Gemini filter skipped (quota 절약 모드) - LightGBM scores used")
+        # Step 7: Clean & Re-rank
+        print("\n[Step 7/7] Finalizing constraints...")
         
         # Update display list with new sorted top 20
-        df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
+        # df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
         
         # CORRECT LOGIC: Re-apply balance if needed or use the balanced list if it was created
         if balanced_selection:

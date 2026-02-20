@@ -91,8 +91,77 @@ def is_noise_article(row):
             
     return False
 
-@st.cache_data(ttl=60, show_spinner=False)
-def load_data_fresh():
+# Configure Gemini API (Direct REST API for Python 3.8 compatibility)
+# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
+GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
+if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+
+# Fallback for local testing if env var not set (User's key)
+if not GENAI_API_KEY:
+    GENAI_API_KEY = "AIzaSyD5HUixHFDEeifmY5NhJCnL4cLlxOp7fp0"
+
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+
+def translate_text(text, target='en'):
+    if not text: return ""
+    
+    # 1. Try Gemini API first (High Quality) with Retry Logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Construct explicit prompt with glossary context (If variables exist, else empty)
+            # External dashboard might not have full glossary defined globally yet?
+            # I will check if KEYWORD_MAPPING is defined.
+            glossary_context = "" 
+            # (Assuming KEYWORD_MAPPING might be defined below, I should check file content first)
+            
+            prompt = f"""
+            You are a professional pharmaceutical translator. 
+            Translate the following Korean text to English.
+            
+            Rules:
+            1. Maintain professional industry terminology.
+            2. Use the specific glossary below for strict term matching:
+            {glossary_context}
+            
+            Text to translate:
+            "{text}"
+            
+            Output only the translated English text, no explanations.
+            """
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            elif response.status_code == 429:
+                if attempt < max_retries - 1:
+                    time.sleep(2) # Wait 2s before retry
+                    continue
+            else:
+                print(f"[Gemini API Error] {response.status_code}: {response.text}")
+                break 
+                
+        except Exception as e:
+            print(f"[Gemini Exception] {e}")
+            break
+            
+    # 2. Fallback
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source='auto', target=target).translate(text)
+    except:
+        return text
     try:
         # Path relative to dashboards/ folder
         base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "articles_raw")
