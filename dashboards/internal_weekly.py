@@ -605,8 +605,8 @@ for cat in sorted_categories:
                  ''', unsafe_allow_html=True)
              
              with c_btn:
-                 # Small, transparent Like button
-                 if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                 # Small, transparent Like button (Light Skin Tone to avoid Yellow)
+                 if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
                     try: save_feedback(row, 1); st.toast("Saved", icon="👍")
                     except: pass
 
