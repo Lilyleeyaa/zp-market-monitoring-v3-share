@@ -382,22 +382,21 @@ st.markdown("""
     /* Button Styles - Ghost/Icon Style */
     .stButton>button {
         background-color: transparent !important;
-        color: #0ABAB5 !important;
-        border: 1px solid #e0e0e0 !important; /* Very subtle border initially */
-        border-radius: 50% !important; /* Circle shape for icons */
-        width: 32px !important;
-        height: 32px !important;
+        color: #cfcfcf !important; /* Lighter/Whitish Grey */
+        border: 1px solid transparent !important; /* No border initially */
+        border-radius: 50% !important;
+        width: 30px !important;
+        height: 30px !important;
         padding: 0px !important;
-        line-height: 30px !important; /* Center vertically */
-        font-size: 16px !important;
+        line-height: 30px !important;
+        font-size: 14px !important;
         transition: all 0.2s ease-in-out;
     }
     .stButton>button:hover {
-        background-color: #E0F2F1 !important; /* Light teal hover */
-        border-color: #0ABAB5 !important;
-        color: #006666 !important;
+        background-color: #f5f5f5 !important;
+        color: #0ABAB5 !important; /* Teal on hover */
+        border: 1px solid #0ABAB5 !important;
         transform: scale(1.1);
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .stButton>button:active {
         background-color: #0ABAB5 !important;
@@ -570,39 +569,36 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Layout: Card Content (Left) + Buttons (Right, Compact)
-        col_card, col_like, col_dislike = st.columns([11, 0.5, 0.5])
-        
-        with col_card:
-            # Reverted to original unified card design
-            st.markdown(f'''
-            <div class="article-card" style="margin-bottom: 0px;">
-                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+        # Layout: Card Container (Bordered Box) - Buttons Inside
+        with st.container(border=True):
+             # Row 1: Header + Buttons
+             c_head, c_like, c_dislike = st.columns([11, 0.5, 0.5])
+             
+             with c_head:
+                 st.markdown(f'''
+                 <div style="margin-bottom: 5px;">
                     <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
-                </div>
-                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {summary}
-                </div>
-            </div>
-            ''', unsafe_allow_html=True)
+                 </div>
+                 <div style="font-size: 12px; color: #888;">
+                    {date} | <span style="background-color: #E0F2F1; padding: 2px 6px; border-radius: 4px; color: #00695C;">{keywords}</span>
+                 </div>
+                 ''', unsafe_allow_html=True)
+             
+             with c_like:
+                 if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                    try: save_feedback(row, 1); st.toast("Liked", icon="👍")
+                    except: pass
+                 
+             with c_dislike:
+                 if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
+                    try: save_feedback(row, 0); st.toast("Disliked", icon="👎")
+                    except: pass
 
-        with col_like:
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Align with title
-            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-               try:
-                   save_feedback(row, 1)
-                   st.toast("Liked", icon="👍")
-               except: pass
-
-        with col_dislike:
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Align with title
-            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="Bad"):
-               try:
-                   save_feedback(row, 0)
-                   st.toast("Disliked", icon="👎")
-               except: pass
-
-        st.write("") # Row spacer
+             # Row 2: Summary
+             st.markdown(f'''
+             <div style="font-size: 14px; color: #555; margin-top: 10px; line-height: 1.6;">
+                {summary}
+             </div>
+             ''', unsafe_allow_html=True)
 
 
