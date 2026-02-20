@@ -702,10 +702,35 @@ else:
                 </div>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Feedback Buttons (Internal Only - Click to Teach AI)
+            fb_col1, fb_col2, fb_col3 = st.columns([1, 1, 8])
+            with fb_col1:
+                if st.button("👍", key=f"like_{row['url']}"):
+                    with open("data/labels/labels_master.csv", "a", encoding="utf-8") as f:
+                        # Clean fields to prevent CSV breakage
+                        c_title = row['title'].replace(",", " ").replace("\n", " ")
+                        c_summary = row.get('summary', '').replace(",", " ").replace("\n", " ")
+                        f.write(f"\n{c_title},{c_summary},1")
+                    st.toast(f"Learned: {title[:10]}... (Good)", icon="✅")
+            with fb_col2:
+                if st.button("👎", key=f"dislike_{row['url']}"):
+                    with open("data/labels/labels_master.csv", "a", encoding="utf-8") as f:
+                        c_title = row['title'].replace(",", " ").replace("\n", " ")
+                        c_summary = row.get('summary', '').replace(",", " ").replace("\n", " ")
+                        f.write(f"\n{c_title},{c_summary},0")
+                    st.toast(f"Learned: {title[:10]}... (Bad)", icon="🚫")
 
 # --- KakaoTalk Summary Generator (New Feature) ---
 # Moved to Sidebar as requested for better accessibility
 with st.sidebar:
+    # Feedback Toggle (Internal Tools)
+    if 'enable_feedback' not in st.session_state:
+        st.session_state.enable_feedback = False
+        
+    st.header("🔧 Internal Tools")
+    st.session_state.enable_feedback = st.toggle("✍️ AI Training Mode", value=st.session_state.enable_feedback)
+    
     st.divider()
     st.subheader("💬 Kakao Update")
     if st.button("📝 Create Summary"):
