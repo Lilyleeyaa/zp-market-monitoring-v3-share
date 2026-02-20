@@ -168,7 +168,7 @@ def translate_text(text, target='en'):
 # Data Loading (External - Competitor Excluded)
 # ====================
 # Competitor keywords to COMPLETELY exclude from external dashboard
-COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로"]
+COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로", "백제약품"]
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
@@ -414,7 +414,7 @@ if st.session_state.get('translation_error'):
 temp_mask = pd.Series([True] * len(df))
 
 # Explicit Exclusion for External Dashboard (User Request)
-EXCLUDED_KEYWORDS_EXT = ["고양이"]
+EXCLUDED_KEYWORDS_EXT = ["고양이", "이지메디컴"]
 if EXCLUDED_KEYWORDS_EXT:
     pat_ext = '|'.join(EXCLUDED_KEYWORDS_EXT)
     temp_mask = temp_mask & ~(
