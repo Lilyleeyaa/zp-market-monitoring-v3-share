@@ -205,13 +205,98 @@ def rank_articles():
             # Use score_ag only
             df['final_score'] = df['score_ag'].clip(0, 10) / 10
 
-        # --- Zuellig Priority Boost ---
-        # Ensure articles mentioning Zuellig or 쥴릭 are always at the top
+
+        # --- Strategic Scoring (Rule-Based Enhancement) ---
+        # User Feedback:
+        # - High Priority: MNC (Global Pharma), Major Distributors (Zuellig, Geo-Young), Key Topics (Patent Expiry, Price Cut, Reimbursement, Co-promotion)
+        # - Low Priority: Domestic Pharma Earnings (unless Major Distributor), Minor Clinical Trials (Phase 1/2) without MNC context
+        
+        MNC_KEYWORDS = [
+            "BMS", "GSK", "노바티스", "얀센", "오가논", "노보", "사노피", "화이자", "아스트라제네카", "암젠", "머크", "릴리", "베링거",
+            "비엠에스", "글락소", "Novartis", "Janssen", "Organon", "Novo", "Sanofi", "Pfizer", "AstraZeneca", "Amgen", "Merck", "Lilly", "Boehringer",
+            "다이이찌산쿄", "Daiichi"
+        ]
+        
+        DISTRIBUTOR_KEYWORDS = [
+            "지오영", "백제", "쥴릭", "블루엠텍", "태전", "복산", "Zuellig", "Geo-Young"
+        ]
+        
+        TIER1_KEYWORDS = [
+            "특허만료", "약가", "급여", "품절", "공급부족",
+            "Patent", "Price", "Reimbursement", "Shortage",
+            "마운자로", "위고비", "젭바운드", "삭센다", "Mounjaro", "Wegovy", "Saxenda"
+        ]
+        
+        TIER2_KEYWORDS = [
+            "제네릭", "공동판매", "코프로모션", "출시", "비만", "방사성",
+            "Generic", "Co-promotion", "Launch", "Obesity", "Radiopharm"
+        ]
+
+        CLINICAL_KEYWORDS = ["임상", "1상", "2상", "3상", "Clinical", "Phase 1", "Phase 2", "Phase 3"]
+        EARNINGS_KEYWORDS = ["실적", "매출", "영업이익", "흑자", "적자", "Earnings", "Revenue", "Profit"]
+
+        def calculate_strategic_score(row):
+            text = (str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('keywords', ''))).lower()
+            score = 0.0
+            
+            # 1. MNC & Distributor Boost (Critical Partners/Competitors)
+            is_mnc = any(k.lower() in text for k in MNC_KEYWORDS)
+            is_distributor = any(k.lower() in text for k in DISTRIBUTOR_KEYWORDS)
+            
+            if is_mnc or is_distributor:
+                score += 1.5
+            
+            # 2. Key Business Topics Boost
+            # Tier 1: Critical Business Events -> +2.0
+            if any(k.lower() in text for k in TIER1_KEYWORDS):
+                score += 2.0
+            # Tier 2: General Strategic Topics -> +1.0 (if not already Tier 1, or cumulative?)
+            # Let's make it cumulative to reward "Patent Expiry" + "Generic" combo, 
+            # or keep it separate? 
+            # If cumulative: Patent(2.0) + Generic(1.0) = 3.0. Huge boost.
+            # If max: max(2.0, 1.0) = 2.0.
+            # Let's add them independently. A "Patent Expiry" leading to "Generic Launch" is very important.
+            
+            if any(k.lower() in text for k in TIER2_KEYWORDS):
+                score += 1.0
+                
+            # 3. Distribution Innovation (Category: Distribution/Logistics + Digital/Platform)
+            if '유통' in str(row.get('category', '')) or 'Classification'.lower() in text: # Check category logic if available
+                 if any(k in text for k in ["디지털", "플랫폼", "이커머스", "온라인", "Digital", "Platform", "E-commerce"]):
+                     score += 1.2
+
+            # 4. Context-Aware Adjustments
+            
+            # A. Clinical Trials: Only boost if MNC/Distributor involved OR Major Phase (3/Approval)
+            if any(k.lower() in text for k in CLINICAL_KEYWORDS):
+                if is_mnc or is_distributor or any(k in text for k in ["3상", "허가", "승인", "Phase 3", "Approval"]):
+                    score += 0.5  # Boost major clinical news
+                else:
+                    score -= 0.2  # Slight penalty for minor/domestic-only clinical news (noise reduction)
+
+            # B. Earnings: Boost for MNC/Distributors, Penalize for others
+            if any(k.lower() in text for k in EARNINGS_KEYWORDS):
+                if is_mnc or is_distributor:
+                    score += 1.0  # Important earnings
+                else:
+                    score -= 0.5  # Domestic pharma earnings -> Low priority
+            
+            return score
+
+        df['strategic_score'] = df.apply(calculate_strategic_score, axis=1)
+        
+        # Combine Scores: Final = (LGBM/Rule * Weights) + Strategic Boost
+        # Base score is already calculated above as 'final_score' (0~1 range)
+        # We add the strategic score directly to push these articles to the top.
+        
+        df['final_score'] = df['final_score'] + df['strategic_score']
+
+        # --- Zuellig Priority Boost (Existing Logic Retained & Reinforced) ---
         def boost_zuellig(row):
             keywords = str(row.get('keywords', '')).lower()
             title = str(row.get('title', '')).lower()
             if 'zuellig' in keywords or '쥴릭' in keywords or 'zuellig' in title or '쥴릭' in title:
-                return 1.0  # Force to top ranking
+                return 10.0  # Absolute Top
             return row['final_score']
             
         df['final_score'] = df.apply(boost_zuellig, axis=1)
