@@ -74,6 +74,7 @@ EXTRA_GLOSSARY = {
     "상급종합병원": "Tertiary General Hospital",
     "건기식": "Health Functional Food",
     "프리필드": "Pre-filled",
+    "니코틴엘": "Nicotinell",
 }
 
 KEYWORD_MAPPING = {
@@ -155,11 +156,19 @@ def translate_text(text, target='en'):
             print(f"[Gemini Exception] {e}")
             break
             
-    # 2. Fallback to Google Translator logic... (Keep existing fallback if feasible or just return empty/original)
-    # Reusing the existing fallback logic from the user's code if present, or just returning simpler fallback
+    # 2. Fallback: deep_translator with glossary pre-substitution
     try:
         from deep_translator import GoogleTranslator
-        return GoogleTranslator(source='auto', target=target).translate(text)
+        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+        processed_text = text
+        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
+        for kr_term in sorted_terms:
+            if kr_term in processed_text:
+                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
+        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        import re
+        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
+        return translated
     except:
         return text
 
