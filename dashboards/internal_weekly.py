@@ -549,32 +549,39 @@ for cat in sorted_categories:
             keywords = keywords_trans
         
         # Original Internal Format: Title ... | Date | Keywords
-        st.markdown(f'''
-        <div class="article-card">
-            <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+        # Layout: Card Content + Feedback Buttons (Right Aligned)
+        col_card, col_like, col_dislike = st.columns([10, 0.8, 0.8])
+        
+        with col_card:
+            st.markdown(f'''
+            <div class="article-card">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+                </div>
+                <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {summary}
+                </div>
             </div>
-            <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                {summary}
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
 
-        # Feedback Buttons (Directly below card)
-        fb_col1, fb_col2, fb_col3 = st.columns([1, 1, 15])
-        with fb_col1:
-            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}"):
+        with col_like:
+            # Vertical alignment spacer
+            st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+            if st.button("👍", key=f"like_{cat}_{_}_{url[-5:]}", help="This is helpful"):
                try:
                    save_feedback(row, 1)
-                   st.toast("Feedback Saved: Like")
+                   st.toast("Saved: Good article")
                except Exception as e:
                    st.error(f"Error: {e}")
-        with fb_col2:
-            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}"):
+
+        with col_dislike:
+            # Vertical alignment spacer
+            st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+            if st.button("👎", key=f"dislike_{cat}_{_}_{url[-5:]}", help="This is not helpful"):
                try:
                    save_feedback(row, 0)
-                   st.toast("Feedback Saved: Dislike")
+                   st.toast("Saved: Not helpful")
                except Exception as e:
                    st.error(f"Error: {e}")
 

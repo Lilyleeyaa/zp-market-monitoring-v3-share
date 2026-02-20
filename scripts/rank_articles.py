@@ -266,18 +266,6 @@ def rank_articles():
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
             
-            # 7. Strategic Focus Keywords (+3.0) - High Priority Topics for this week
-            # These are not permanent rules but "Current Focus" as requested by user.
-            strategic_focus = [
-                "릭시아나", "lixiana", "파슬로덱스", "faslodex", "블루엠텍", "bluemtech", 
-                "위고비", "wegovy", "마운자로", "mounjaro", "아토젯", "atozet",
-                "hk이노엔", "hk inno.n", "삼진제약", "samjin", "닥터 레디스", "dr. reddy",
-                "불임", "난임", "infertility", "항암", "anticancer", "여성암",
-                "최대 실적", "최대 매출", "1조 클럽", "매출 1조"
-            ]
-            if any(k in text for k in strategic_focus):
-                strategic_score += 3.0
-
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
             if any(k in text for k in exclusion_keywords):
