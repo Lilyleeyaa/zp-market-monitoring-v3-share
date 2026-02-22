@@ -16,7 +16,7 @@ import pytz
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.simple_auth import authenticate
+from auth.simple_auth import authenticate_internal
 
 # Page configuration
 st.set_page_config(
@@ -32,11 +32,7 @@ st.title("🏥 Healthcare Market Monitoring")
 st.markdown("Automated news monitoring & analysis system")
 
 # 인증 (내부 전용)
-email, access_level = authenticate(mode='weekly')
-
-if access_level != 'internal':
-    st.error("❌ 이 대시보드는 내부 사용자만 접근 가능합니다.")
-    st.stop()
+email = authenticate_internal()
     
 # Add version toast to confirm update
 st.toast("Updated Code Loaded (v3.0.5)", icon="✅")

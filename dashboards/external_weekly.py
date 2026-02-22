@@ -11,7 +11,7 @@ import time
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.simple_auth import authenticate, get_current_user
+from auth.simple_auth import authenticate_external
 from scripts.config import get_excluded_keywords, should_exclude_article
 
 # 페이지 설정
@@ -21,8 +21,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# 인증 (내부/외부 모두 가능)
-email, access_level = authenticate(mode='weekly')
+# 인증 (외부 전용)
+email = authenticate_external()
 
 
 
