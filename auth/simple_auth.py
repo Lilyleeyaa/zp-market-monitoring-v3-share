@@ -97,16 +97,22 @@ def authenticate(mode='weekly'):
             is_whitelisted = email in external_users
 
             # Password verification
+            is_internal = any(email.endswith(domain) for domain in config.get('internal_domains', []))
+            
             if is_whitelisted:
                 # External Users: Must use specific password
                 if password != "MNCbd!":
                     st.error("❌ Incorrect password.")
                     st.stop()
-            else:
+            elif is_internal:
                 # Internal Users: Common internal password
                 if hash_password(password) != config['common_password_hash']:
                     st.error("❌ Incorrect password.")
                     st.stop()
+            else:
+                # Unknown email: Not in whitelist and not internal domain
+                st.error("❌ Access denied. Only authorized users can access this dashboard.")
+                st.stop()
             
             # Determine access level
             access_level = 'external'
