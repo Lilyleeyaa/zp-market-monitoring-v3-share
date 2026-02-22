@@ -11,9 +11,9 @@ internal_domains:
   - "zuelligpharma.com"
 
 # 사용 방법:
-# - Internal Weekly: @zuelligpharma.com 또는 @zp.com 이메일만 접근 가능
-# - External Weekly: 모든 이메일 접근 가능 (비밀번호만 맞으면)
-# - Daily Validation: 모든 이메일 접근 가능 (비밀번호만 맞으면)
+# - Internal Weekly: @zuelligpharma.com 이메일 + 내부 비밀번호
+# - External Weekly: external_users.txt에 등록된 이메일 + 외부 비밀번호
+# - Daily Validation: 내부 사용자만 접근 가능
 #
 # 비밀번호: 모두 동일 (ZPzp!)
 # 변경 시: auth/generate_password.py 실행하여 새 해시값 생성
