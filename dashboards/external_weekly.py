@@ -24,20 +24,7 @@ st.set_page_config(
 # 인증 (내부/외부 모두 가능)
 email, access_level = authenticate(mode='weekly')
 
-# [Admin/Internal Only] Show external email list for verification
-if access_level == 'internal':
-    with st.sidebar.expander("📧 External Emails (Internal Only)"):
-        try:
-            # Construct path to external_users.txt relative to this script
-            user_list_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'auth', 'external_users.txt')
-            if os.path.exists(user_list_path):
-                with open(user_list_path, 'r', encoding='utf-8') as f:
-                    emails = f.read()
-                st.text_area("Registered Emails", emails, height=300)
-            else:
-                st.warning("external_users.txt not found")
-        except Exception as e:
-            st.error(f"Error loading emails: {e}")
+
 
 # 대시보드 메인 코드
 # --- Data Loading Logic (Synced with Internal) ---
