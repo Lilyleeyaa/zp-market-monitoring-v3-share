@@ -257,10 +257,8 @@ def save_feedback(row, label):
             gh_token = os.getenv("GITHUB_TOKEN", "")
         
         if not gh_token:
-            # Show ALL keys for debugging
-            all_keys = list(st.secrets) if hasattr(st, 'secrets') else []
-            auth_keys = list(st.secrets["auth"]) if "auth" in st.secrets else []
-            raise RuntimeError(f"GITHUB_TOKEN not found. Top keys: {all_keys}, auth keys: {auth_keys}")
+            st.toast("⚠️ 피드백 저장 불가 (GITHUB_TOKEN 미설정)", icon="⚠️")
+            return
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
