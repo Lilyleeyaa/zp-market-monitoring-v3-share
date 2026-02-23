@@ -137,9 +137,9 @@ def authenticate_external():
         submit = st.form_submit_button("Login")
         
         if submit:
-            external_users = _load_external_users(config)
+            external_users = [e.lower() for e in _load_external_users(config)]
             
-            if email not in external_users:
+            if email.lower() not in external_users:
                 st.error("❌ Access denied. Only authorized users can access this dashboard.")
                 st.stop()
             
