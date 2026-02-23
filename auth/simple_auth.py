@@ -90,8 +90,8 @@ def authenticate_internal():
     st.title("🔐 Internal Login")
     
     with st.form("login_form"):
-        email = st.text_input("Email", placeholder="your.name@zuelligpharma.com")
-        password = st.text_input("Password", type="password")
+        email = st.text_input("Email", placeholder="your.name@zuelligpharma.com").strip()
+        password = st.text_input("Password", type="password").strip()
         submit = st.form_submit_button("Login")
         
         if submit:
@@ -132,8 +132,8 @@ def authenticate_external():
     st.title("🔐 Login")
     
     with st.form("login_form"):
-        email = st.text_input("Email", placeholder="your.email@company.com")
-        password = st.text_input("Password", type="password")
+        email = st.text_input("Email", placeholder="your.email@company.com").strip()
+        password = st.text_input("Password", type="password").strip()
         submit = st.form_submit_button("Login")
         
         if submit:
