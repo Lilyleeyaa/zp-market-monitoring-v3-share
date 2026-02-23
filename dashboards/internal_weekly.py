@@ -34,35 +34,36 @@ st.markdown("Automated news monitoring & analysis system")
 # 인증 (내부 전용)
 email = authenticate_internal()
 
-# GitHub Token을 session_state에 캐시 (secrets 접근은 첫 로드 시에만)
+# GitHub Token을 session_state에 캐시 (인증과 동일한 경로로 로드)
 if 'gh_token' not in st.session_state:
     _gh_token = None
-    for _accessor in [
-        lambda: st.secrets["GITHUB_TOKEN"],
-        lambda: st.secrets.GITHUB_TOKEN,
-        lambda: st.secrets["auth"]["GITHUB_TOKEN"],
-    ]:
-        try:
-            _val = _accessor()
-            if _val:
-                _gh_token = _val
-                break
-        except:
-            continue
-    st.session_state['gh_token'] = _gh_token or ""
-    
     _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
-    for _accessor in [
-        lambda: st.secrets["GITHUB_REPO"],
-        lambda: st.secrets["auth"]["GITHUB_REPO"],
-    ]:
+    
+    # 1. load_auth_config() 경로 (인증과 동일 — 가장 안정적)
+    try:
+        from auth.simple_auth import load_auth_config
+        _config = load_auth_config()
+        if 'GITHUB_TOKEN' in _config:
+            _gh_token = _config['GITHUB_TOKEN']
+        if 'GITHUB_REPO' in _config:
+            _gh_repo = _config['GITHUB_REPO']
+    except:
+        pass
+    
+    # 2. 못 찾았으면 st.secrets 직접 접근
+    if not _gh_token:
         try:
-            _val = _accessor()
-            if _val:
-                _gh_repo = _val
-                break
+            _gh_token = st.secrets["GITHUB_TOKEN"]
         except:
-            continue
+            pass
+    
+    if not _gh_token:
+        try:
+            _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
+        except:
+            pass
+    
+    st.session_state['gh_token'] = _gh_token or ""
     st.session_state['gh_repo'] = _gh_repo
     
 # Add version toast to confirm update
@@ -265,13 +266,14 @@ def save_feedback(row, label):
     """
     import base64
     from datetime import datetime
+    import pytz
     
     try:
         gh_token = st.session_state.get('gh_token', '')
         gh_repo = st.session_state.get('gh_repo', 'Lilyleeyaa/zp-market-monitoring-v3-share')
         
         if not gh_token:
-            return  # 조용히 무시
+            raise RuntimeError("GitHub Token missing")
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
@@ -281,7 +283,10 @@ def save_feedback(row, label):
         c_category = str(row.get('category', '')).strip()
         c_keywords = str(row.get('keywords', '')).strip()
         c_score_ag = str(row.get('score_ag', '')).strip()
-        feedback_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        # Apply KST timezone
+        kst = pytz.timezone('Asia/Seoul')
+        feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
         
         buf = io.StringIO()
         writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
