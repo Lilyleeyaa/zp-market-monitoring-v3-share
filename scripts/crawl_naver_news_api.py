@@ -961,8 +961,8 @@ def main():
             # If body triggers exclusion (e.g. "Yongma Saemaul Geumgo"), remove it.
             df = df[df.apply(lambda x: not is_noise_article(str(x['title']) + ' ' + str(x['temp_body'])), axis=1)]
             
-            # Drop the temp body column to keep CSV clean
-            df = df.drop(columns=['temp_body'])
+            # RENAME temp_body to content and KEEP IT
+            df = df.rename(columns={'temp_body': 'content'})
             
             count_after_deep = len(df)
             print(f"   Removed {count_before_deep - count_after_deep} articles based on full content. Final: {count_after_deep}")
@@ -975,9 +975,8 @@ def main():
         df['reward'] = ''
         df['rl_score'] = ''
         
-        # Reorder columns (Removed 'body' as requested to reduce clutter)
-        # Added 'category' which was missing
-        df = df[['date', 'category', 'published_date', 'site_name', 'url', 'title', 'summary', 
+        # Reorder columns (Added 'content')
+        df = df[['date', 'category', 'published_date', 'site_name', 'url', 'title', 'summary', 'content',
                  'region', 'score_ag', 'keywords', 'reward', 'rl_score']]
         
         # ✅ Apply global healthcare domain filter

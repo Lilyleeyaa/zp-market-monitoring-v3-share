@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
+import re
 import requests
 import json
 import time
@@ -15,7 +16,7 @@ import pytz
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.simple_auth import authenticate
+from auth.simple_auth import authenticate_internal
 
 # Page configuration
 st.set_page_config(
@@ -31,11 +32,39 @@ st.title("🏥 Healthcare Market Monitoring")
 st.markdown("Automated news monitoring & analysis system")
 
 # 인증 (내부 전용)
-email, access_level = authenticate(mode='weekly')
+email = authenticate_internal()
 
-if access_level != 'internal':
-    st.error("❌ 이 대시보드는 내부 사용자만 접근 가능합니다.")
-    st.stop()
+# GitHub Token을 session_state에 캐시 (인증과 동일한 경로로 로드)
+if 'gh_token' not in st.session_state:
+    _gh_token = None
+    _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
+    
+    # 1. load_auth_config() 경로 (인증과 동일 — 가장 안정적)
+    try:
+        from auth.simple_auth import load_auth_config
+        _config = load_auth_config()
+        if 'GITHUB_TOKEN' in _config:
+            _gh_token = _config['GITHUB_TOKEN']
+        if 'GITHUB_REPO' in _config:
+            _gh_repo = _config['GITHUB_REPO']
+    except:
+        pass
+    
+    # 2. 못 찾았으면 st.secrets 직접 접근
+    if not _gh_token:
+        try:
+            _gh_token = st.secrets["GITHUB_TOKEN"]
+        except:
+            pass
+    
+    if not _gh_token:
+        try:
+            _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
+        except:
+            pass
+    
+    st.session_state['gh_token'] = _gh_token or ""
+    st.session_state['gh_repo'] = _gh_repo
     
 # Add version toast to confirm update
 st.toast("Updated Code Loaded (v3.0.5)", icon="✅")
@@ -73,6 +102,11 @@ EXTRA_GLOSSARY = {
     "상급종합병원": "Tertiary General Hospital",
     "건기식": "Health Functional Food",
     "프리필드": "Pre-filled",
+    "니코틴엘": "Nicotinell",
+    "파슬로덱스": "Faslodex",
+    "닥터레디": "Dr. Reddy's",
+    "HK이노엔": "HK InnoN",
+    "포시가": "Forxiga",
 }
 
 KEYWORD_MAPPING = {
@@ -80,7 +114,8 @@ KEYWORD_MAPPING = {
     "공동판매": "Co-Promotion", "코프로모션": "Co-Promotion", "유통계약": "Distribution Agreement", "판권": "Sales Rights", "라이선스": "License", "M&A": "M&A", "인수": "Acquisition", "합병": "Merger", "제휴": "Partnership", "파트너십": "Partnership", "계약": "Contract", "생물학적제제": "Biologics", "콜드체인": "Cold Chain", "CSO": "CSO", "판촉영업자": "Sales Agent", "특허만료": "Patent Expiry", "국가백신": "National Vaccine", "백신": "Vaccine",
     "허가": "Approval", "신제품": "New Product", "출시": "Launch", "신약": "New Drug", "적응증": "Indication", "제형": "Formulation", "용량": "Dosage",
     "보험등재": "Reimbursement", "급여": "NHI Coverage", "약가": "Drug Price",
-    "쥴릭": "Zuellig", "지피테라퓨틱스": "ZP Therapeutics", "라미실": "Lamisil", "액티넘": "Actinum", "베타딘": "Betadine", "사이클로제스트": "Cyclogest", "리브타요": "Libtayo",
+    "쥴릭": "Zuellig", "지피테라퓨틱스": "ZP Therapeutics", "지피": "ZP Therapeutics", "지피 테라퓨틱스": "ZP Therapeutics",
+    "라미실": "Lamisil", "액티넘": "Actinum", "베타딘": "Betadine", "사이클로제스트": "Cyclogest", "리브타요": "Libtayo",
     "한독": "Handok", "MSD": "MSD", "오가논": "Organon", "화이자": "Pfizer", "사노피": "Sanofi", "암젠": "Amgen", "GSK": "GSK", "로슈": "Roche", "릴리": "Lilly", "노바티스": "Novartis", "노보노디스크": "Novo Nordisk", "머크": "Merck", "레코르다티": "Recordati", "셀진": "Celgene", "테바한독": "Teva-Handok", "베링거인겔하임": "Boehringer Ingelheim", "BMS": "BMS", "아스트라제네카": "AstraZeneca", "애브비": "AbbVie", "파마노비아": "Pharmanovia", "리제네론": "Regeneron", "바이엘": "Bayer", "아스텔라스": "Astellas", "얀센": "Janssen", "바이오젠": "Biogen", "입센": "Ipsen", "애보트": "Abbott", "안텐진": "Antengene", "베이진": "BeiGene", "셀트리온": "Celltrion", "헤일리온": "Haelion", "오펠라": "Opella", "켄뷰": "Kenvue", "로레알": "L'Oreal", "메나리니": "Menarini", "위고비": "Wegovy", "마운자로": "Mounjaro",
     "난임": "Infertility", "불임": "Infertility", "항암제": "Anticancer",
     "공급중단": "Supply Disruption", "공급부족": "Supply Shortage", "품절": "Out of Stock", "품귀": "Shortage",
@@ -89,6 +124,88 @@ KEYWORD_MAPPING = {
 # ====================
 # Filter Logic Definitions (Global)
 # ====================
+# Configure Gemini API (Direct REST API for Python 3.8 compatibility)
+# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
+# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
+GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
+if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
+    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+
+# Fallback: Removed hardcoded key for security
+if not GENAI_API_KEY:
+    pass # API calls will fail gracefully or use fallback logic
+
+
+
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+
+def translate_text(text, target='en'):
+    if not text: return ""
+    
+    # 1. Try Gemini API first (High Quality) with Retry Logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Construct explicit prompt with glossary context
+            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+            
+            prompt = f"""
+            You are a professional pharmaceutical translator. 
+            Translate the following Korean text to English.
+            
+            Rules:
+            1. Maintain professional industry terminology.
+            2. Use the specific glossary below for strict term matching:
+            {glossary_context}
+            
+            Text to translate:
+            "{text}"
+            
+            Output only the translated English text, no explanations.
+            """
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            elif response.status_code == 429:
+                if attempt < max_retries - 1:
+                    time.sleep(2) # Wait 2s before retry
+                    continue
+            else:
+                print(f"[Gemini API Error] {response.status_code}: {response.text}")
+                break 
+                
+        except Exception as e:
+            print(f"[Gemini Exception] {e}")
+            break
+            
+    # 2. Fallback: deep_translator with glossary pre-substitution
+    try:
+        from deep_translator import GoogleTranslator
+        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+        processed_text = text
+        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
+        for kr_term in sorted_terms:
+            if kr_term in processed_text:
+                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
+        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        import re
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
+        return translated
+    except:
+        return text
+
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 
 EXCLUDED_KEYWORDS = [
@@ -99,14 +216,16 @@ EXCLUDED_KEYWORDS = [
     "주가", "주식", "목표주가", "특징주", "급등",
     "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
     "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
-    "채용", "신입사원", "공채", "원서접수", "고양이"
+    "채용", "신입사원", "공채", "원서접수", "고양이",
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴"
 ]
 
 GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
 PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단", "물류", "유통", "공급"]
 
 def is_noise_article(row):
-    text = str(row['title']) + " " + str(row.get('summary', ''))
+    # Check Title + Summary + Content (Body)
+    text = str(row['title']) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
     
     # 1. Check Explicit Exclusions
     for exc in EXCLUDED_KEYWORDS:
@@ -137,82 +256,88 @@ def has_internal_keyword(row_keywords):
             return True
     return False
 
-# API Key Security: Load from Streamlit Secrets or Environment Variable
-try:
-    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
-except:
-    import os
-    GENAI_API_KEY = os.getenv("GENAI_API_KEY", "")
+# Duplicate translation logic removed. Using the function defined above.
 
-if not GENAI_API_KEY:
-    # Placeholder for local development if secrets not set (Translation will fail gracefully)
-    pass
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+def save_feedback(row, label):
+    """
+    Save feedback to GitHub repo via REST API (persistent across Streamlit Cloud reboots).
+    Appends to data/labels/feedback_log.csv with url as merge key.
+    label: 1 = Like (reward), 0 = Dislike
+    """
+    import base64
+    from datetime import datetime
+    import pytz
+    
+    try:
+        gh_token = st.session_state.get('gh_token', '')
+        gh_repo = st.session_state.get('gh_repo', 'Lilyleeyaa/zp-market-monitoring-v3-share')
+        
+        if not gh_token:
+            raise RuntimeError("GitHub Token missing")
+        file_path = "data/labels/feedback_log.csv"
+        
+        # Prepare feedback row (use csv module for proper quoting)
+        import csv, io
+        c_url = str(row.get('url', '')).strip()
+        c_title = str(row.get('title', '')).replace("\n", " ").strip()
+        c_category = str(row.get('category', '')).strip()
+        c_keywords = str(row.get('keywords', '')).strip()
+        c_score_ag = str(row.get('score_ag', '')).strip()
+        
+        # Apply KST timezone
+        kst = pytz.timezone('Asia/Seoul')
+        feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
+        
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
+        new_line = buf.getvalue().rstrip("\r\n")
+        
+        
+        # GitHub API: Get existing file (or create new)
+        api_url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
+        headers = {
+            "Authorization": f"Bearer {gh_token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        resp = requests.get(api_url, headers=headers)
+        
+        if resp.status_code == 200:
+            # File exists — append to it
+            file_data = resp.json()
+            existing_content = base64.b64decode(file_data["content"]).decode("utf-8")
+            updated_content = existing_content.rstrip("\n") + "\n" + new_line + "\n"
+            sha = file_data["sha"]
+        else:
+            # File doesn't exist — create with header
+            header = "feedback_date,url,title,category,keywords,score_ag,reward"
+            updated_content = header + "\n" + new_line + "\n"
+            sha = None
+        
+        # Commit to GitHub
+        payload = {
+            "message": f"Feedback: {c_title[:40]}... ({feedback_date})",
+            "content": base64.b64encode(updated_content.encode("utf-8")).decode("utf-8"),
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+        
+        put_resp = requests.put(api_url, headers=headers, json=payload)
+        
+        if put_resp.status_code in [200, 201]:
+            print(f"[OK] Feedback saved to GitHub: {c_title[:40]}...")
+        else:
+            raise RuntimeError(f"GitHub API {put_resp.status_code}: {put_resp.text[:300]}")
+            
+    except RuntimeError:
+        raise  # Re-raise to show in toast
+    except Exception as e:
+        raise RuntimeError(f"save_feedback error: {e}")
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def translate_text(text, target='en'):
-    # Cache Version: v4 (Force Reload with Regex Fix)
-    if not text: return ""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            from deep_translator import GoogleTranslator
-            
-            # 1. Try Gemini First (Better Context)
-            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-            
-            prompt = f"""
-            You are a professional pharmaceutical translator. 
-            Translate the following Korean text to English.
-            
-            Rules:
-            1. Maintain professional industry terminology.
-            2. Use the specific glossary below for strict term matching:
-            {glossary_context}
-            
-            Text to translate:
-            "{text}"
-            
-            Output only the translated English text, no explanations.
-            """
-            
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if 'candidates' in result and result['candidates']:
-                    translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                    # Post-processing fix (Regex)
-                    translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-                    return translated
-            elif response.status_code == 429:
-                time.sleep(2)
-                continue
-            else:
-                break
-        except Exception as e:
-            break
-            
-    # 2. Fallback to Google Translator (Deep Translator)
-    try:
-        from deep_translator import GoogleTranslator
-        processed_text = text
-        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
-        for kr_term in sorted_terms:
-            if kr_term in processed_text:
-                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-        return translated
-    except:
-        return text
-
-@st.cache_data(show_spinner=False)
-def translate_article_batch(title, summary, keywords):
+def translate_article_batch(title, summary, keywords):  # Cache v8
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
@@ -312,14 +437,8 @@ st.markdown("""
     }
     
     /* Article Card Styles */
-    .article-card {
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        background-color: #ffffff; /* White card */
-        border-left: 5px solid #0ABAB5; /* Tiffany Blue Accent */
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
+    /* Article Card Styling matches container below */
+    /* .article-card removed (Styling applied via stVerticalBlockBorderWrapper) */
     
     .article-title {
         font-size: 18px;
@@ -355,12 +474,53 @@ st.markdown("""
     }
     
     /* Button Styles */
+    /* Button Styles - Ghost/Icon Style */
+    /* Button Styles - Pure Icon Style (No Border) */
     .stButton>button {
-        background-color: #0ABAB5 !important;
-        color: white !important;
-        border: none;
+        background-color: transparent !important;
+        color: inherit !important;
+        border: none !important;
+        border-radius: 0px !important;
+        padding: 0px !important;
+        font-size: 20px !important;
+        line-height: 1 !important;
+        transition: transform 0.2s;
+        height: auto !important;
+        min-height: 0px !important;
+        box-shadow: none !important;
     }
-</style>
+    .stButton>button:hover {
+        background-color: transparent !important;
+        color: inherit !important;
+        border: none !important;
+        transform: scale(1.2);
+    }
+    .stButton>button:active {
+        transform: scale(0.95);
+        background-color: transparent !important;
+    }
+    .stButton>button:focus {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    .stButton>button p {
+         line-height: normal;
+    }
+    
+    /* Remove white box wrapper around button */
+    .stButton {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Also remove any Streamlit container wrapper styling around the button column */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
 """, unsafe_allow_html=True)
 
 # Noise Cleanup Logic moved to global scope and applied in cached loader
@@ -377,23 +537,14 @@ with f_col1:
     use_english = (lang_opt == "English")
 
 with f_col2:
-    # Force 2/6 Week as default
-    start_week, end_week = get_weekly_date_range()
-    
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
         max_date = df['published_date'].max()
-        
-        # Override with strict user requirement if available in data
-        default_start = max(min_date, start_week) if min_date else start_week
-        default_end = min(max_date, end_week) if max_date else end_week
-
-        date_range = st.date_input("📅 Date Range", [default_start, default_end])
-            
+        date_range = st.date_input("📅 Date Range", [min_date, max_date])
         if isinstance(date_range, list) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
-            start_date, end_date = default_start, default_end
+            start_date, end_date = min_date, max_date
     else:
         start_date, end_date = None, None
 
@@ -524,17 +675,36 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # Original Internal Format: Title ... | Date | Keywords
-        st.markdown(f'''
-        <div class="article-card">
-            <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                <span style="color: #666; font-size: 12px;"> | {date} | {keywords}</span>
+        # Layout: Pure HTML Card (Inline Styles - Cannot be overridden by theme)
+        c_card, c_btn = st.columns([15, 1])
+        
+        with c_card:
+            st.markdown(f'''
+            <div style="
+                background-color: #FFFFFF;
+                border-left: 6px solid #0ABAB5;
+                border-radius: 8px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                padding: 20px;
+                margin-bottom: 15px;
+            ">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
+                </div>
+                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {summary}
+                </div>
             </div>
-            <div style="font-size: 16px; margin-top: 8px; color: #555; line-height: 1.6;">
-                {summary}
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
+        
+        with c_btn:
+            # Small, transparent Like button (Light Skin Tone to avoid Yellow)
+            if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
+                try:
+                    save_feedback(row, 1)
+                    st.toast("Saved!", icon="👍")
+                except Exception as e:
+                    st.toast(f"Error: {e}", icon="⚠️")
 
 

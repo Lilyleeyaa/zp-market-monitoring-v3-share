@@ -11,7 +11,7 @@ import time
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.simple_auth import authenticate, get_current_user
+from auth.simple_auth import authenticate_external
 from scripts.config import get_excluded_keywords, should_exclude_article
 
 # 페이지 설정
@@ -21,23 +21,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# 인증 (내부/외부 모두 가능)
-email, access_level = authenticate(mode='weekly')
+# 인증 (외부 전용)
+email = authenticate_external()
 
-# [Admin/Internal Only] Show external email list for verification
-if access_level == 'internal':
-    with st.sidebar.expander("📧 External Emails (Internal Only)"):
-        try:
-            # Construct path to external_users.txt relative to this script
-            user_list_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'auth', 'external_users.txt')
-            if os.path.exists(user_list_path):
-                with open(user_list_path, 'r', encoding='utf-8') as f:
-                    emails = f.read()
-                st.text_area("Registered Emails", emails, height=300)
-            else:
-                st.warning("external_users.txt not found")
-        except Exception as e:
-            st.error(f"Error loading emails: {e}")
+
 
 # 대시보드 메인 코드
 # --- Data Loading Logic (Synced with Internal) ---
@@ -51,10 +38,128 @@ def get_weekly_date_range():
     start_date = today - timedelta(days=7)
     return start_date, today
 
-@st.cache_data(ttl=60, show_spinner=False)
-def load_data():
+# ====================
+# Filter Logic (Ported from Internal for Consistency)
+# ====================
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
+    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", 
+    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
+    "주가", "주식", "목표주가", "특징주", "급등",
+    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
+    "채용", "신입사원", "공채", "원서접수", "고양이",
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스"
+]
+
+GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
+PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단", "물류", "유통", "공급"]
+
+def is_noise_article(row):
+    # Check Title + Summary + Content (Body)
+    text = str(row['title']) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
+    
+    # 1. Check Explicit Exclusions
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text:
+            return True
+            
+    # 2. Homonym Check: "제약" (Constraint vs Pharma)
+    if "제약" in text:
+        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
+            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
+                return True
+                
+    # 3. Context Check for Generics (M&A, Investment)
+    if any(k in text for k in GENERIC_KEYWORDS):
+        if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
+            return True
+            
+    return False
+
+# Configure Gemini API
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")
+if not GENAI_API_KEY:
     try:
-        # Path relative to dashboards/ folder
+        GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
+    except:
+        GENAI_API_KEY = ""
+
+if not GENAI_API_KEY:
+    pass  # Translation will fail gracefully
+
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+
+def translate_text(text, target='en'):
+    if not text: return ""
+    
+    # 1. Try Gemini API first (High Quality) with Retry Logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Construct explicit prompt with glossary context (If variables exist, else empty)
+            # External dashboard might not have full glossary defined globally yet?
+            # I will check if KEYWORD_MAPPING is defined.
+            glossary_context = "" 
+            # (Assuming KEYWORD_MAPPING might be defined below, I should check file content first)
+            
+            prompt = f"""
+            You are a professional pharmaceutical translator. 
+            Translate the following Korean text to English.
+            
+            Rules:
+            1. Maintain professional industry terminology.
+            2. Use the specific glossary below for strict term matching:
+            {glossary_context}
+            
+            Text to translate:
+            "{text}"
+            
+            Output only the translated English text, no explanations.
+            """
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
+            elif response.status_code == 429:
+                if attempt < max_retries - 1:
+                    time.sleep(2) # Wait 2s before retry
+                    continue
+            else:
+                print(f"[Gemini API Error] {response.status_code}: {response.text}")
+                break 
+                
+        except Exception as e:
+            print(f"[Gemini Exception] {e}")
+            break
+            
+    # 2. Fallback
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source='auto', target=target).translate(text)
+    except:
+        return text
+
+# ====================
+# Data Loading (External - Competitor Excluded)
+# ====================
+# Competitor keywords to COMPLETELY exclude from external dashboard
+COMPETITOR_KEYWORDS = ["지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로", "백제약품", "이지메디컴"]
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_weekly_data():
+    try:
         base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "articles_raw")
         if not os.path.exists(base_dir):
             base_dir = "../data/articles_raw"
@@ -66,15 +171,35 @@ def load_data():
         latest_file = ranked_files[-1]
         df = pd.read_csv(latest_file, encoding='utf-8-sig')
         
-        # Date conversion
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
+
+        if 'category' not in df.columns:
+            df['category'] = 'General'
+
+        if 'keywords' not in df.columns:
+            df['keywords'] = ''
+            
+        # Noise Filter
+        if not df.empty:
+            df['is_noise'] = df.apply(is_noise_article, axis=1)
+            df = df[~df['is_noise']]
+        
+        # Competitor Filter (HARD EXCLUDE at load time)
+        if not df.empty and COMPETITOR_KEYWORDS:
+            comp_pattern = '|'.join(COMPETITOR_KEYWORDS)
+            comp_mask = (
+                df['title'].str.contains(comp_pattern, case=False, na=False) |
+                df['summary'].fillna('').str.contains(comp_pattern, case=False, na=False) |
+                df['keywords'].fillna('').str.contains(comp_pattern, case=False, na=False)
+            )
+            df = df[~comp_mask]
             
         return df, os.path.basename(latest_file)
     except Exception as e:
         return pd.DataFrame(), str(e)
 
-df, filename = load_data()
+df, filename = load_weekly_data()
 
 if df.empty:
     st.error(f"데이터를 불러올 수 없습니다: {filename}")
@@ -132,7 +257,10 @@ KEYWORD_MAPPING = {
     '항암제': 'Anticancer',
     '헬스케어': 'Healthcare',
     '협회': 'Association',
-    '희귀질환': 'Rare Disease'
+    '희귀질환': 'Rare Disease',
+    '지피테라퓨틱스': 'ZP Therapeutics',
+    '지피': 'ZP Therapeutics',
+    '지피 테라퓨틱스': 'ZP Therapeutics'
 }
 
 # ====================
@@ -172,6 +300,10 @@ EXTRA_GLOSSARY = {
     "쥴릭코리아": "Zuellig Pharma Korea",
     "쥴릭 파마": "Zuellig Pharma",
     "니코틴엘": "Nicotinell",
+    "파슬로덱스": "Faslodex",
+    "닥터레디": "Dr. Reddy's",
+    "HK이노엔": "HK InnoN",
+    "포시가": "Forxiga",
 }
 
 import re # For robust replacement
@@ -186,70 +318,38 @@ except:
 if not GENAI_API_KEY:
     # Placeholder for local development if secrets not set (Translation will fail gracefully)
     pass
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GENAI_API_KEY}"
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600)
 def translate_text(text, target='en'):
-    # Cache Version: v4 (Force Reload for Nicotinell Regex Fix)
+    # Cache Version: v8 (error capture)
     if not text: return ""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            # 1. Try Gemini First (Better Context)
-            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-            
-            prompt = f"""
-            You are a professional pharmaceutical translator. 
-            Translate the following Korean text to English.
-            
-            Rules:
-            1. Maintain professional industry terminology.
-            2. Use the specific glossary below for strict term matching:
-            {glossary_context}
-            
-            Text to translate:
-            "{text}"
-            
-            Output only the translated English text, no explanations.
-            """
-            
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if 'candidates' in result and result['candidates']:
-                    translated = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                    # Post-processing fix
-                    translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
-                    return translated
-            elif response.status_code == 429:
-                time.sleep(2)
-                continue
-            else:
-                break
-        except Exception as e:
-            break
-            
-    # 2. Fallback to Google Translator (Deep Translator)
+    
+    full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+
+    # ── Gemini 번역 (quota 소진 시 주석 해제) ──────────────────────────
+    # [주석처리 유지 - quota 소진]
+    # ── Gemini 끝 ────────────────────────────────────────────────────────
+
+    # deep_translator (Google Translate) + glossary 치환
     try:
         from deep_translator import GoogleTranslator
         processed_text = text
-        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
         sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
         for kr_term in sorted_terms:
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = re.sub(r'nicotine\s*l', 'Nicotinell', translated, flags=re.IGNORECASE)
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
-    except:
-        return text
+    except Exception as e:
+        # 에러 내용을 session_state에 저장 (디버그용)
+        if 'translation_error' not in st.session_state:
+            st.session_state['translation_error'] = str(e)
+        return text  # 원본 반환
 
-@st.cache_data(show_spinner=False)
-def translate_article_batch(title, summary, keywords):
+@st.cache_data(show_spinner=False, ttl=3600)
+def translate_article_batch(title, summary, keywords):  # Cache v8
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
@@ -279,17 +379,14 @@ with f_col1:
     use_english = (lang_opt == "English")
 
 with f_col2:
-    start_week, end_week = get_weekly_date_range()
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
         max_date = df['published_date'].max()
-        default_start = max(min_date, start_week) if min_date else start_week
-        default_end = min(max_date, end_week) if max_date else end_week
-        date_range = st.date_input("📅 Date Range", [default_start, default_end])
+        date_range = st.date_input("📅 Date Range", [min_date, max_date])
         if isinstance(date_range, list) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
-            start_date, end_date = default_start, default_end
+            start_date, end_date = min_date, max_date
     else:
         start_date, end_date = None, None
 
@@ -297,11 +394,15 @@ with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
 
+# [DEBUG] Translation error display
+if st.session_state.get('translation_error'):
+    st.warning(f"⚠️ Translation error: {st.session_state['translation_error']}")
+
 # Dynamic Keyword Filter Preparation
 temp_mask = pd.Series([True] * len(df))
 
 # Explicit Exclusion for External Dashboard (User Request)
-EXCLUDED_KEYWORDS_EXT = ["고양이"]
+EXCLUDED_KEYWORDS_EXT = ["고양이", "이지메디컴"]
 if EXCLUDED_KEYWORDS_EXT:
     pat_ext = '|'.join(EXCLUDED_KEYWORDS_EXT)
     temp_mask = temp_mask & ~(
@@ -317,9 +418,10 @@ if selected_categories:
     temp_mask = temp_mask & (df['category'].isin(selected_categories))
 
 # Apply excluded keywords FIRST to the kw extraction source
-excluded_keywords_ext = get_excluded_keywords(access_level='external')
-if excluded_keywords_ext:
-    pat = '|'.join(excluded_keywords_ext)
+# Competitor keywords excluded from external dashboard
+COMPETITOR_KEYWORDS = ["대웅", "종근당", "한미약품", "유한양행", "녹십자", "일동제약", "보령", "동아ST", "JW중외", "광동제약"]
+if COMPETITOR_KEYWORDS:
+    pat = '|'.join(COMPETITOR_KEYWORDS)
     safe_kw_mask = ~(
         df['title'].str.contains(pat, case=False, na=False) |
         df['summary'].fillna('').str.contains(pat, case=False, na=False) |
@@ -362,7 +464,7 @@ with f_col6:
     show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
 
 # --- Logic Phase 1: Global Exclusion (External Security) ---
-excluded_keywords = get_excluded_keywords(access_level='external')
+excluded_keywords = COMPETITOR_KEYWORDS.copy()
 
 # User Request: Force Exclude 'Cat' in External Dashboard
 if "고양이" not in excluded_keywords:

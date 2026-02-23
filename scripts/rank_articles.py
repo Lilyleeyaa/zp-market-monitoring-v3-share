@@ -111,16 +111,16 @@ def rank_articles():
             print("\n[Step 5/6] Extracting features...")
             print("  - Loading SentenceTransformer...")
             sys.stdout.flush()
-            model_st = SentenceTransformer('all-MiniLM-L6-v2')
             
-            print(f"  - Encoding {len(df)} articles...")
-            sys.stdout.flush()
+            print("  - Encoding text features (jhgan/ko-sroberta-multitask)...")
+            # Using Korean-Specific Model
+            model_st = SentenceTransformer('jhgan/ko-sroberta-multitask')
             text_features = model_st.encode(
                 (df['title'] + " " + df['summary'].fillna('')).tolist(),
-                show_progress_bar=True
+                show_progress_bar=False
             )
             
-            # PCA: Encode 384 -> 64 dimensions (Load trained PCA)
+            # PCA: Encode 768 -> 128 dimensions (Load trained PCA)
             PCA_PATH = os.path.join(MODEL_DIR, "pca.pkl")
             if not os.path.exists(PCA_PATH):
                 print(f"[ERROR] PCA model not found at {PCA_PATH}")
@@ -129,7 +129,7 @@ def rank_articles():
             
             pca = joblib.load(PCA_PATH)
             
-            print("  - Reducing dimensions (PCA 384 -> 64)...")
+            print("  - Reducing dimensions (PCA 768 -> 128)...")
             text_features = pca.transform(text_features)
             
             print("  - Extracting metadata features...")
@@ -205,16 +205,100 @@ def rank_articles():
             # Use score_ag only
             df['final_score'] = df['score_ag'].clip(0, 10) / 10
 
-        # --- Zuellig Priority Boost ---
-        # Ensure articles mentioning Zuellig or 쥴릭 are always at the top
-        def boost_zuellig(row):
-            keywords = str(row.get('keywords', '')).lower()
-            title = str(row.get('title', '')).lower()
-            if 'zuellig' in keywords or '쥴릭' in keywords or 'zuellig' in title or '쥴릭' in title:
-                return 1.0  # Force to top ranking
-            return row['final_score']
+
+        # --- Strategic Scoring (Rule-Based Enhancement) ---
+        # User Feedback:
+        # - High Priority: MNC (Global Pharma), Major Distributors (Zuellig, Geo-Young), Key Topics (Patent Expiry, Price Cut, Reimbursement, Co-promotion)
+        # - Low Priority: Domestic Pharma Earnings (unless Major Distributor), Minor Clinical Trials (Phase 1/2) without MNC context
+        
+        # --- New Strategic Scoring (Business Value Based) ---
+        def calculate_bd_strategic_score(row):
+            # 1. Base Score by Category
+            category_map = {
+                'Distribution': 10.0, 
+                'Zuellig': 10.0,
+                'Reimbursement': 9.0, 
+                'Client': 8.0,
+                'BD': 7.0, 
+                'Product Approval': 7.0,
+                'Supply Issues': 5.0, 
+                'Therapeutic Areas': 5.0,
+                'Regulation': 5.0
+            }
+            base_score = category_map.get(row.get('category'), 2.0)
             
-        df['final_score'] = df.apply(boost_zuellig, axis=1)
+            # Text Extraction (Title + Summary + Keywords)
+            text = (str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('keywords', ''))).lower()
+            
+            # 2. Commercial Boost Keywords (+3.0)
+            commercial_keywords = [
+                "출시", "판권", "유통", "계약", "파트너", "공동판매", "코프로모션", "허가완료", "급여", "도입",
+                "launch", "license", "distribution", "contract", "partner", "co-promotion", "approval", "reimbursement"
+            ]
+            has_commercial = any(k in text for k in commercial_keywords)
+            
+            # 3. Market Dynamic Keywords (+2.0)
+            market_keywords = [
+                "지오영", "백제", "m&a", "인수", "철수", "한국 법인", "점유율",
+                "geo-young", "market share"
+            ]
+            has_market = any(k in text for k in market_keywords)
+            
+            # 4. Clinical Penalty Keywords (-8.0 ~ -10.0)
+            clinical_keywords = [
+                "임상", "1상", "2상", "3상", "진입", "시험 중", "파이프라인", "전임상", "후보물질", "연구 결과",
+                "clinical", "phase 1", "phase 2", "phase 3", "trial", "preclinical", "pipeline"
+            ]
+            has_clinical = any(k in text for k in clinical_keywords)
+            
+            # 5. Calculate Strategic Score
+            strategic_score = base_score
+            
+            if has_commercial:
+                strategic_score += 3.0
+            
+            if has_market:
+                strategic_score += 2.0
+                
+            if has_clinical:
+                if has_commercial:
+                    strategic_score -= 2.0  # Commercial context (e.g. "Phase 3 complete, Launch imminent") -> Mild Penalty
+                else:
+                    strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
+            
+            # 8. Specific Exclusion (User Request)
+            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
+            if any(k in text for k in exclusion_keywords):
+                strategic_score -= 20.0 # Force remove
+                
+            # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
+            if row.get('category') == 'Distribution':
+                if '병원' in text and '입찰' in text:
+                    strategic_score -= 20.0 # Force remove (User Request)
+            
+            return max(0, strategic_score)
+
+        df['strategic_score'] = df.apply(calculate_bd_strategic_score, axis=1)
+        
+        # Combine Scores: Final = (LGBM_Component * 0.4) + (Strategic_Score * 0.6)
+        # LGBM_Component needs to be on 0-10 scale.
+        
+        if use_model:
+            # lgbm_score is 0-1. Scaling to 10.
+            # We also mix in score_ag for robustness (0-10).
+            # let's assume 'LGBM_Score' in user's formula represents the "AI/Quality" Score.
+            # We'll use a mix: 50% LGBM (scaled) + 50% ScoreAG.
+            df['lgbm_component'] = (df['lgbm_score'] * 10 * 0.5) + (df['score_ag'] * 0.5)
+        else:
+            df['lgbm_component'] = df['score_ag'] # Fallback
+            
+        # Apply Formula
+        # Final_Score = (LGBM_Component * 0.4) + (Strategic_Score * 0.6)
+        
+        df['final_score'] = (df['lgbm_component'] * 0.4) + (df['strategic_score'] * 0.6)
+        
+        # Removed boost_zuellig as it caps score at 10.0, which is lower than the new max score (~14.2).
+        # Zuellig articles now naturally score high via Base(10) + Keywords.
         
         # Category-balanced selection for top results
         print("  - Applying category balancing...")
@@ -225,11 +309,16 @@ def rank_articles():
         balanced_selection = []
         categories = df['category'].unique()
         
-        # First pass: Top 4 from each major category (Reverted to 4 as per user request - Safety Net)
-        for cat in ['Distribution', 'Client', 'BD', 'Zuellig']:
+        # First pass: Top 4 from Distribution/Zuellig/BD, but limit Client to 2
+        for cat in ['Distribution', 'Zuellig', 'BD']:
             if cat in categories:
                 cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
                 balanced_selection.append(cat_articles)
+        
+        # Limit Client category to Top 2 to avoid "trash" articles
+        if 'Client' in categories:
+            client_articles = df_sorted[df_sorted['category'] == 'Client'].head(2)
+            balanced_selection.append(client_articles)
         
         # Second pass: Top 1-2 from other categories
         for cat in categories:
@@ -253,64 +342,11 @@ def rank_articles():
         else:
             df_top20_display = df_sorted.head(20)
         
-        # Step 7: Gemini Deduplication & Strategic Scoring (Always Run if Key Exists)
-        print("\n[Step 7/7] Applying Gemini filter...")
-        
-        # Check API Key availability
-        gemini_key = os.getenv('GENAI_API_KEY')
-        if not gemini_key:
-            print("  [WARNING] GENAI_API_KEY not found. Skipping Gemini filter.")
-        else:
-            try:
-                from gemini_filter import gemini_batch_deduplicate_and_score
-                
-                # Process top 30 candidates through Gemini (Business Optimization: Noise Reduction & API Limits)
-                # Reduced from 100 to 30 per user request (429 Error Fix)
-                top_candidates = df_sorted.head(30).copy()
-                
-                print(f"  - Sending {len(top_candidates)} articles to Gemini for scoring...")
-                filtered_candidates = gemini_batch_deduplicate_and_score(top_candidates)
-                
-                if filtered_candidates is not None and not filtered_candidates.empty:
-                    # Update scores based on Gemini assessment
-                    # If gemini_score >= 8: Bonus +2.0
-                    # If gemini_score <= 2: Penalty -5.0 (Effectively remove)
-                    
-                    def apply_gemini_impact(row):
-                        g_score = row.get('gemini_score', 0)
-                        current_score = row.get('final_score', 0)
-                        
-                        if g_score >= 8:
-                            return min(current_score * 1.5, 1.0) # Boost high relevance
-                        elif g_score >= 6:
-                            return min(current_score * 1.2, 1.0)
-                        elif g_score <= 2:
-                            return 0.0 # Remove noise (Awards, etc.)
-                        else:
-                            return current_score
-                            
-                    filtered_candidates['final_score'] = filtered_candidates.apply(apply_gemini_impact, axis=1)
-                    
-                    # Remove duplicates and low scores
-                    filtered_candidates = filtered_candidates[filtered_candidates['final_score'] > 0]
-                    
-                    # Merge back
-                    # 1. Articles processed by Gemini
-                    # 2. Articles NOT processed (ranked 31+)
-                    remaining = df_sorted.iloc[30:] 
-                    
-                    df_final = pd.concat([filtered_candidates, remaining], ignore_index=True)
-                    df_sorted = df_final.sort_values(by='final_score', ascending=False)
-                    print(f"  [OK] Gemini filtering complete. Top score: {df_sorted['final_score'].max():.2f}")
-                    
-            except ImportError:
-                print("  [ERROR] Could not import gemini_filter. Check scripts/gemini_filter.py")
-            except Exception as e:
-                print(f"  [ERROR] Gemini filter failed: {str(e)}")
-                print("  [INFO] Continuing with LGBM scores only")
+        # Step 7: Clean & Re-rank
+        print("\n[Step 7/7] Finalizing constraints...")
         
         # Update display list with new sorted top 20
-        df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
+        # df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
         
         # CORRECT LOGIC: Re-apply balance if needed or use the balanced list if it was created
         if balanced_selection:

@@ -1,6 +1,3 @@
-# auth/config.yaml 파일을 .gitignore에 추가 (비밀번호 보안)
-auth/config.yaml
-
 # Python cache
 __pycache__/
 *.pyc

@@ -3,5 +3,5 @@ echo ====================================
 echo Starting ZP Market Monitoring Dashboard
 echo ====================================
 echo.
-streamlit run dashboard_app.py
+streamlit run dashboards/internal_weekly.py
 pause

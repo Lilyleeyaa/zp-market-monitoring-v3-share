@@ -91,7 +91,7 @@ def load_data():
         if f'{col}_raw' in df.columns:
             df[col] = df[f'{col}_raw']
     
-    print(f"✓ Loaded {len(df)} labeled articles")
+    print(f"[OK] Loaded {len(df)} labeled articles")
     return df
 
 
@@ -99,8 +99,9 @@ def extract_features(df):
     """Extract features for LightGBM"""
     print("\n>>> Extracting Features...")
     
-    # Load sentence transformer
-    model_st = SentenceTransformer('all-MiniLM-L6-v2')
+    # Load sentence transformer (Korean-Specific Model)
+    print("  - Loading Korean embedding model (jhgan/ko-sroberta-multitask)...")
+    model_st = SentenceTransformer('jhgan/ko-sroberta-multitask')
     
     # Text embeddings
     print("  - Encoding text features...")
@@ -109,17 +110,17 @@ def extract_features(df):
         show_progress_bar=True
     )
     
-    # PCA: Encode 384 -> 64 dimensions (Better balance between compression and info retention)
+    # PCA: Encode 768 -> 128 dimensions (RoBERTa is 768d)
     from sklearn.decomposition import PCA
-    print("  - Reducing dimensions (PCA 384 -> 64)...")
-    pca = PCA(n_components=64, random_state=42)
+    print("  - Reducing dimensions (PCA 768 -> 128)...")
+    pca = PCA(n_components=128, random_state=42)
     text_features = pca.fit_transform(text_embeddings)
     
     # Save PCA model
     PCA_PATH = os.path.join(MODEL_DIR, "pca.pkl")
     with open(PCA_PATH, 'wb') as f:
         pickle.dump(pca, f)
-    print(f"✓ PCA model saved to {PCA_PATH}")
+    print(f"[OK] PCA model saved to {PCA_PATH}")
 
     
     # Metadata features
@@ -153,8 +154,8 @@ def extract_features(df):
     weights = df['score_ag'].values
     weights = np.clip(weights, 1, 10) # Clip 1~10
     
-    print(f"✓ Feature extraction complete: {X.shape}")
-    print(f"✓ Text features: 64 dims (PCA) + Metadata: {meta_features.shape[1]} features")
+    print(f"[OK] Feature extraction complete: {X.shape}")
+    print(f"[OK] Text features: 128 dims (PCA) + Metadata: {meta_features.shape[1]} features")
     return X, y, weights, df
 
 
@@ -195,7 +196,7 @@ def train_model():
     # Save scaler
     with open(SCALER_PATH, 'wb') as f:
         pickle.dump(scaler, f)
-    print(f"✓ Scaler saved to {SCALER_PATH}")
+    print(f"[OK] Scaler saved to {SCALER_PATH}")
     
     # Create LightGBM datasets WITH WEIGHTS
     print("\n>>> Training LightGBM Model (Weighted by score_ag)...")
@@ -218,7 +219,7 @@ def train_model():
     
     # Save model
     model.save_model(MODEL_PATH)
-    print(f"\n✓ Model saved to {MODEL_PATH}")
+    print(f"\n[OK] Model saved to {MODEL_PATH}")
     
     # Evaluate
     print("\n>>> Evaluating on Test Set...")
@@ -243,7 +244,7 @@ def train_model():
     
     # Reconstruct feature names (removed days_old)
     category_cols = pd.get_dummies(df['category'], prefix='cat').columns.tolist()
-    feature_names = [f"pca_{i}" for i in range(64)] + ['score_ag'] + category_cols
+    feature_names = [f"pca_{i}" for i in range(128)] + ['score_ag'] + category_cols
     
     importance_df = pd.DataFrame({
         'feature': feature_names,

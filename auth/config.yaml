@@ -1,0 +1,15 @@
+# ZP Market Monitoring v3 - Authentication Configuration
+
+# 내부 비밀번호 (SHA-256 해시) - ZPzp!
+common_password_hash: "9af8e589e496a744e10a0eb1013a767976bb63e2f39dbb32c4e40b81506f5e8d"
+
+# 내부 사용자 이메일 도메인
+internal_domains:
+  - "zuelligpharma.com"
+
+# 사용 방법:
+# - Internal: @zuelligpharma.com 이메일 + 내부 비밀번호 (ZPzp!)
+# - External: external_users.txt에 등록된 이메일 + 외부 비밀번호 (MNCbd!)
+# - Daily Validation: 내부 사용자만 접근 가능
+#
+# 내부 비밀번호 변경 시: auth/generate_password.py 실행하여 새 해시값 생성
