@@ -33,6 +33,37 @@ st.markdown("Automated news monitoring & analysis system")
 
 # 인증 (내부 전용)
 email = authenticate_internal()
+
+# GitHub Token을 session_state에 캐시 (secrets 접근은 첫 로드 시에만)
+if 'gh_token' not in st.session_state:
+    _gh_token = None
+    for _accessor in [
+        lambda: st.secrets["GITHUB_TOKEN"],
+        lambda: st.secrets.GITHUB_TOKEN,
+        lambda: st.secrets["auth"]["GITHUB_TOKEN"],
+    ]:
+        try:
+            _val = _accessor()
+            if _val:
+                _gh_token = _val
+                break
+        except:
+            continue
+    st.session_state['gh_token'] = _gh_token or ""
+    
+    _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
+    for _accessor in [
+        lambda: st.secrets["GITHUB_REPO"],
+        lambda: st.secrets["auth"]["GITHUB_REPO"],
+    ]:
+        try:
+            _val = _accessor()
+            if _val:
+                _gh_repo = _val
+                break
+        except:
+            continue
+    st.session_state['gh_repo'] = _gh_repo
     
 # Add version toast to confirm update
 st.toast("Updated Code Loaded (v3.0.5)", icon="✅")
@@ -236,40 +267,11 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        # Read GitHub credentials via direct access (avoid 'in' operator issues)
-        gh_token = None
-        gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
-        
-        # Try every possible location
-        for accessor in [
-            lambda: st.secrets["GITHUB_TOKEN"],
-            lambda: st.secrets.GITHUB_TOKEN,
-            lambda: st.secrets["auth"]["GITHUB_TOKEN"],
-            lambda: os.getenv("GITHUB_TOKEN"),
-        ]:
-            try:
-                val = accessor()
-                if val:
-                    gh_token = val
-                    break
-            except:
-                continue
-        
-        for accessor in [
-            lambda: st.secrets["GITHUB_REPO"],
-            lambda: st.secrets["auth"]["GITHUB_REPO"],
-        ]:
-            try:
-                val = accessor()
-                if val:
-                    gh_repo = val
-                    break
-            except:
-                continue
+        gh_token = st.session_state.get('gh_token', '')
+        gh_repo = st.session_state.get('gh_repo', 'Lilyleeyaa/zp-market-monitoring-v3-share')
         
         if not gh_token:
-            st.toast("⚠️ 피드백 저장 불가 (GITHUB_TOKEN 미설정)", icon="⚠️")
-            return
+            return  # 조용히 무시
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
