@@ -120,7 +120,7 @@ def authenticate_internal():
 def authenticate_external():
     """
     외부 전용 인증
-    - external_users.txt에 등록된 이메일 + 외부 비밀번호
+    - external_users.txt에 등록된 이메일 + 외부 비밀번호 (MNCbd!)
     Returns: email or None
     """
     config = load_auth_config()
@@ -139,28 +139,18 @@ def authenticate_external():
         if submit:
             external_users = _load_external_users(config)
             
-            # 내부 도메인도 허용 (내부 사용자가 External 확인용으로 접속할 수 있음)
-            is_internal = any(email.endswith(domain) for domain in config.get('internal_domains', []))
-            
-            if is_internal:
-                # 내부 사용자는 내부 비밀번호로 접근
-                if hash_password(password) != config['common_password_hash']:
-                    st.error("❌ Incorrect password.")
-                    st.stop()
-            elif email in external_users:
-                # 외부 등록 사용자: 외부 비밀번호
-                if password != "MNCbd!":
-                    st.error("❌ Incorrect password.")
-                    st.stop()
-            else:
-                # 미등록 이메일
+            if email not in external_users:
                 st.error("❌ Access denied. Only authorized users can access this dashboard.")
+                st.stop()
+            
+            if password != "MNCbd!":
+                st.error("❌ Incorrect password.")
                 st.stop()
             
             # 로그인 성공
             st.session_state['authenticated'] = True
             st.session_state['email'] = email
-            st.session_state['access_level'] = 'internal' if is_internal else 'external'
+            st.session_state['access_level'] = 'external'
             st.success("✅ Login successful!")
             st.rerun()
     
