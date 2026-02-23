@@ -140,7 +140,7 @@ def authenticate_external():
             external_users = [e.lower() for e in _load_external_users(config)]
             
             if email.lower() not in external_users:
-                st.error("❌ Access denied. Only authorized users can access this dashboard.")
+                st.error(f"❌ Access denied. (Debug: '{email.lower()}' not found in {len(external_users)} loaded users)")
                 st.stop()
             
             if password != "MNCbd!":
