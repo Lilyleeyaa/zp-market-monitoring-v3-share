@@ -236,21 +236,31 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        # Read GitHub credentials directly from secrets at call time
+        # Read GitHub credentials - check top-level AND inside [auth]
         gh_token = None
         gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
         
         if hasattr(st, 'secrets'):
+            # 1. Check top-level
             if "GITHUB_TOKEN" in st.secrets:
                 gh_token = st.secrets["GITHUB_TOKEN"]
+            # 2. Check inside [auth] section
+            elif "auth" in st.secrets and "GITHUB_TOKEN" in st.secrets["auth"]:
+                gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
+            
             if "GITHUB_REPO" in st.secrets:
                 gh_repo = st.secrets["GITHUB_REPO"]
+            elif "auth" in st.secrets and "GITHUB_REPO" in st.secrets["auth"]:
+                gh_repo = st.secrets["auth"]["GITHUB_REPO"]
         
         if not gh_token:
             gh_token = os.getenv("GITHUB_TOKEN", "")
         
         if not gh_token:
-            raise RuntimeError(f"GITHUB_TOKEN not found. secrets keys: {list(st.secrets) if hasattr(st, 'secrets') else 'N/A'}")
+            # Show ALL keys for debugging
+            all_keys = list(st.secrets) if hasattr(st, 'secrets') else []
+            auth_keys = list(st.secrets["auth"]) if "auth" in st.secrets else []
+            raise RuntimeError(f"GITHUB_TOKEN not found. Top keys: {all_keys}, auth keys: {auth_keys}")
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
