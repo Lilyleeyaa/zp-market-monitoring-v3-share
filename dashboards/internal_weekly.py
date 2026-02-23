@@ -502,23 +502,14 @@ with f_col1:
     use_english = (lang_opt == "English")
 
 with f_col2:
-    # Force 2/6 Week as default
-    start_week, end_week = get_weekly_date_range()
-    
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
         max_date = df['published_date'].max()
-        
-        # Override with strict user requirement if available in data
-        default_start = max(min_date, start_week) if min_date else start_week
-        default_end = min(max_date, end_week) if max_date else end_week
-
-        date_range = st.date_input("📅 Date Range", [default_start, default_end])
-            
+        date_range = st.date_input("📅 Date Range", [min_date, max_date])
         if isinstance(date_range, list) and len(date_range) == 2:
             start_date, end_date = date_range
         else:
-            start_date, end_date = default_start, default_end
+            start_date, end_date = min_date, max_date
     else:
         start_date, end_date = None, None
 
