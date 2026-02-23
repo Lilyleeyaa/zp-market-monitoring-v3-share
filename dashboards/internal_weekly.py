@@ -103,15 +103,7 @@ if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
 if not GENAI_API_KEY:
     pass # API calls will fail gracefully or use fallback logic
 
-# GitHub API credentials (for feedback feature)
-try:
-    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-except:
-    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-try:
-    GITHUB_REPO = st.secrets["GITHUB_REPO"]
-except:
-    GITHUB_REPO = "Lilyleeyaa/zp-market-monitoring-v3-share"
+
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
@@ -244,11 +236,21 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        gh_token = GITHUB_TOKEN
-        gh_repo = GITHUB_REPO
+        # Read GitHub credentials directly from secrets at call time
+        gh_token = None
+        gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
+        
+        if hasattr(st, 'secrets'):
+            if "GITHUB_TOKEN" in st.secrets:
+                gh_token = st.secrets["GITHUB_TOKEN"]
+            if "GITHUB_REPO" in st.secrets:
+                gh_repo = st.secrets["GITHUB_REPO"]
         
         if not gh_token:
-            raise RuntimeError("GITHUB_TOKEN missing from Streamlit secrets.")
+            gh_token = os.getenv("GITHUB_TOKEN", "")
+        
+        if not gh_token:
+            raise RuntimeError(f"GITHUB_TOKEN not found. secrets keys: {list(st.secrets) if hasattr(st, 'secrets') else 'N/A'}")
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
