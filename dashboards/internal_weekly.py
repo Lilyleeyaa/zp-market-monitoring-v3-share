@@ -234,9 +234,15 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        # Get GitHub credentials from Streamlit secrets (top-level keys, no comments in TOML!)
-        gh_token = st.secrets.get("GITHUB_TOKEN", "")
-        gh_repo = st.secrets.get("GITHUB_REPO", "Lilyleeyaa/zp-market-monitoring-v3-share")
+        # Get GitHub credentials from Streamlit secrets
+        try:
+            gh_token = st.secrets["GITHUB_TOKEN"]
+        except:
+            gh_token = ""
+        try:
+            gh_repo = st.secrets["GITHUB_REPO"]
+        except:
+            gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
         
         if not gh_token:
             raise RuntimeError("GITHUB_TOKEN missing from Streamlit secrets. Check secrets format (remove # comments, use quoted values).")
