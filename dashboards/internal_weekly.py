@@ -236,25 +236,36 @@ def save_feedback(row, label):
     from datetime import datetime
     
     try:
-        # Read GitHub credentials - check top-level AND inside [auth]
+        # Read GitHub credentials via direct access (avoid 'in' operator issues)
         gh_token = None
         gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
         
-        if hasattr(st, 'secrets'):
-            # 1. Check top-level
-            if "GITHUB_TOKEN" in st.secrets:
-                gh_token = st.secrets["GITHUB_TOKEN"]
-            # 2. Check inside [auth] section
-            elif "auth" in st.secrets and "GITHUB_TOKEN" in st.secrets["auth"]:
-                gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
-            
-            if "GITHUB_REPO" in st.secrets:
-                gh_repo = st.secrets["GITHUB_REPO"]
-            elif "auth" in st.secrets and "GITHUB_REPO" in st.secrets["auth"]:
-                gh_repo = st.secrets["auth"]["GITHUB_REPO"]
+        # Try every possible location
+        for accessor in [
+            lambda: st.secrets["GITHUB_TOKEN"],
+            lambda: st.secrets.GITHUB_TOKEN,
+            lambda: st.secrets["auth"]["GITHUB_TOKEN"],
+            lambda: os.getenv("GITHUB_TOKEN"),
+        ]:
+            try:
+                val = accessor()
+                if val:
+                    gh_token = val
+                    break
+            except:
+                continue
         
-        if not gh_token:
-            gh_token = os.getenv("GITHUB_TOKEN", "")
+        for accessor in [
+            lambda: st.secrets["GITHUB_REPO"],
+            lambda: st.secrets["auth"]["GITHUB_REPO"],
+        ]:
+            try:
+                val = accessor()
+                if val:
+                    gh_repo = val
+                    break
+            except:
+                continue
         
         if not gh_token:
             st.toast("⚠️ 피드백 저장 불가 (GITHUB_TOKEN 미설정)", icon="⚠️")
