@@ -130,6 +130,12 @@ def extract_features(df):
     # Category encoding (one-hot)
     category_dummies = pd.get_dummies(df['category'], prefix='cat')
     
+    # Save category columns
+    import joblib
+    CAT_COLS_PATH = os.path.join(MODEL_DIR, "category_cols.pkl")
+    joblib.dump(category_dummies.columns.tolist(), CAT_COLS_PATH)
+    print(f"[OK] Category columns saved to {CAT_COLS_PATH}")
+    
     # Removed days_old - it was causing temporal bias
     
     meta_features = pd.concat([

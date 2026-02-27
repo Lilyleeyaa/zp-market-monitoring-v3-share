@@ -138,6 +138,16 @@ def rank_articles():
             # Category encoding (one-hot) - must match training
             category_dummies = pd.get_dummies(df['category'], prefix='cat')
             
+            # Reindex to match training categories
+            CAT_COLS_PATH = os.path.join(MODEL_DIR, "category_cols.pkl")
+            if os.path.exists(CAT_COLS_PATH):
+                training_cat_cols = joblib.load(CAT_COLS_PATH)
+                category_dummies = category_dummies.reindex(columns=training_cat_cols, fill_value=0)
+            else:
+                # Fallback to known 8 categories if file doesn't exist
+                known_cats = ['cat_BD', 'cat_Client', 'cat_Distribution', 'cat_Product Approval', 'cat_Reimbursement', 'cat_Supply Issues', 'cat_Therapeutic Areas', 'cat_Zuellig']
+                category_dummies = category_dummies.reindex(columns=known_cats, fill_value=0)
+            
             # Removed days_old to reduce temporal bias
             
             meta_features = pd.concat([
