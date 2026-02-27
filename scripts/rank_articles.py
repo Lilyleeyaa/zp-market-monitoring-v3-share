@@ -300,6 +300,8 @@ def rank_articles():
             if row.get('category') == 'Distribution':
                 if '병원' in text and '입찰' in text:
                     strategic_score -= 20.0 # Force remove (User Request)
+                if '도이치뱅크' in text:
+                    strategic_score -= 20.0 # Force remove (User Request)
             
             return max(0, strategic_score)
 
