@@ -228,14 +228,15 @@ def rank_articles():
                 'Distribution': 10.0, 
                 'Zuellig': 10.0,
                 'Reimbursement': 9.0, 
-                'Client': 8.0,
                 'BD': 7.0, 
                 'Product Approval': 7.0,
+                'Client': 5.0,        # Lowered from 8.0 to allow model to filter irrelevant
                 'Supply Issues': 5.0, 
                 'Therapeutic Areas': 5.0,
                 'Regulation': 5.0
             }
             base_score = category_map.get(row.get('category'), 2.0)
+
             
             # Text Extraction (Title + Summary + Keywords)
             text = (str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('keywords', ''))).lower()
@@ -275,6 +276,15 @@ def rank_articles():
                     strategic_score -= 2.0  # Commercial context (e.g. "Phase 3 complete, Launch imminent") -> Mild Penalty
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
+            
+            # 6. General Corporate Penalty Keywords (Irrelevant HR/IR News)
+            corporate_keywords = [
+                "사외이사", "선임", "주주총회", "재편", "배당", "실적", "영업이익", "매출", "적자", "흑자전환"
+            ]
+            if str(row.get('category')) == 'Client':
+                if any(k in text for k in corporate_keywords):
+                    strategic_score -= 8.0  # Heavy penalty for simple corporate news in Client category
+            
             
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
