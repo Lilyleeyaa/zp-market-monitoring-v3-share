@@ -53,18 +53,16 @@ if 'gh_token' not in st.session_state:
     # 2. 못 찾았으면 st.secrets 직접 접근
     if not _gh_token:
         try:
-            _gh_token = st.secrets["GITHUB_TOKEN"]
-        except:
-            pass
-    
-    if not _gh_token:
-        try:
-            _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
-        except:
+            if "GITHUB_TOKEN" in st.secrets:
+                _gh_token = st.secrets["GITHUB_TOKEN"]
+            elif "auth" in st.secrets and "GITHUB_TOKEN" in st.secrets["auth"]:
+                _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
+        except Exception:
             pass
     
     st.session_state['gh_token'] = _gh_token or ""
     st.session_state['gh_repo'] = _gh_repo
+
     
 # Add version toast to confirm update
 st.toast("Updated Code Loaded (v3.0.5)", icon="✅")
@@ -270,7 +268,7 @@ def save_feedback(row, label):
     
     try:
         gh_token = st.session_state.get('gh_token', '')
-        gh_repo = st.session_state.get('gh_repo', 'Lilyleeyaa/zp-market-monitoring-v3-share')
+        gh_repo = st.session_state.get('gh_repo') or 'Lilyleeyaa/zp-market-monitoring-v3-share'
         
         if not gh_token:
             raise RuntimeError("GitHub Token missing")
