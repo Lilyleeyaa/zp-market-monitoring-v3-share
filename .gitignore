@@ -22,8 +22,8 @@ ENV/
 Thumbs.db
 
 # Model files (optional - 용량이 크면 추가)
-model/*.pkl
-model/*.txt
+# model/*.pkl
+# model/*.txt
 
 # Logs
 *.log
