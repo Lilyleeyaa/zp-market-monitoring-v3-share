@@ -76,6 +76,11 @@ def is_noise_article(row):
         if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
             return True
             
+    # 4. Specific Distribution Exclusion
+    if str(row.get('category')) == 'Distribution':
+        if '도이치뱅크' in text:
+            return True
+            
     return False
 
 # Configure Gemini API
