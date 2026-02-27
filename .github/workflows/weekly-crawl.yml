@@ -57,7 +57,6 @@ jobs:
           git add data/articles_raw/*.csv
           git add data/labels/*.csv
           git add data/labels/feedback_archive/ || true
-          git add data/articles_ranked/ || true
           git add model/*.pkl model/*.txt
           git diff --staged --quiet || git commit -m "Auto: Weekly crawl + feedback merge $(date +'%Y-%m-%d %H:%M')"
           git push origin HEAD:${{ github.ref_name }}
