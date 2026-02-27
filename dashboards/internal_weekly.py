@@ -35,7 +35,7 @@ st.markdown("Automated news monitoring & analysis system")
 email = authenticate_internal()
 
 # GitHub Token을 session_state에 캐시 (인증과 동일한 경로로 로드)
-if 'gh_token' not in st.session_state:
+if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
     _gh_token = None
     _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
     
@@ -55,10 +55,16 @@ if 'gh_token' not in st.session_state:
         try:
             if "GITHUB_TOKEN" in st.secrets:
                 _gh_token = st.secrets["GITHUB_TOKEN"]
+            elif "github_token" in st.secrets:
+                _gh_token = st.secrets["github_token"]
             elif "auth" in st.secrets and "GITHUB_TOKEN" in st.secrets["auth"]:
                 _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
         except Exception:
             pass
+
+    # 3. 환경 변수 확인 (Streamlit Cloud 환경 변수 등)
+    if not _gh_token:
+        _gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("github_token")
     
     st.session_state['gh_token'] = _gh_token or ""
     st.session_state['gh_repo'] = _gh_repo

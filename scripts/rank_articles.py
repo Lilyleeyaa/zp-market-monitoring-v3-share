@@ -228,9 +228,9 @@ def rank_articles():
                 'Distribution': 10.0, 
                 'Zuellig': 10.0,
                 'Reimbursement': 9.0, 
+                'Client': 7.0,        # Restored to 7.0 so important Client news isn't lost
                 'BD': 7.0, 
                 'Product Approval': 7.0,
-                'Client': 5.0,        # Lowered from 8.0 to allow model to filter irrelevant
                 'Supply Issues': 5.0, 
                 'Therapeutic Areas': 5.0,
                 'Regulation': 5.0
@@ -277,15 +277,20 @@ def rank_articles():
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
             
-            # 6. General Corporate Penalty Keywords (Irrelevant HR/IR News)
-            corporate_keywords = [
-                "사외이사", "선임", "주주총회", "재편", "배당", "실적", "영업이익", "매출", "적자", "흑자전환"
+            # 6. General Corporate Penalty (Softened based on user feedback)
+            # Remove "흑자전환", "재편" as user considers major pharma restructuring/earnings as important Client news
+            corporate_keywords_minor = [
+                "주주총회", "배당", "적자", "단순 실적"
             ]
             if str(row.get('category')) == 'Client':
-                if any(k in text for k in corporate_keywords):
-                    strategic_score -= 8.0  # Heavy penalty for simple corporate news in Client category
+                if any(k in text for k in corporate_keywords_minor):
+                    strategic_score -= 5.0  # Milder penalty for very generic IR news
             
-            
+            # 7. VIP Client boost (User cited specific MNCs and major domestics)
+            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜"]
+            if any(k in text for k in vip_keywords):
+                strategic_score += 4.0
+
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics"]
             if any(k in text for k in exclusion_keywords):
@@ -352,15 +357,20 @@ def rank_articles():
             df_balanced = df_balanced.drop_duplicates(subset=['url'])
             df_balanced = df_balanced.sort_values(by='final_score', ascending=False)
             
-            # Fill remaining slots with highest scores (if less than 20)
+            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 9.0)
+            # Do not force 20 articles if relevance is low
             if len(df_balanced) < 20:
-                remaining = df_sorted[~df_sorted['url'].isin(df_balanced['url'])].head(20 - len(df_balanced))
-                df_balanced = pd.concat([df_balanced, remaining], ignore_index=True)
+                high_quality_remaining = df_sorted[
+                    (~df_sorted['url'].isin(df_balanced['url'])) & 
+                    (df_sorted['final_score'] >= 9.0)
+                ].head(20 - len(df_balanced))
+                df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
             
             # Use balanced top 20 for display, but save full sorted list
             df_top20_display = df_balanced.head(20)
         else:
-            df_top20_display = df_sorted.head(20)
+            df_top20_display = df_sorted[df_sorted['final_score'] >= 9.0].head(20)
+
         
         # Step 7: Clean & Re-rank
         print("\n[Step 7/7] Finalizing constraints...")
