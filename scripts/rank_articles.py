@@ -298,7 +298,7 @@ def rank_articles():
                 strategic_score += 4.0
 
             # 8. Specific Exclusion (User Request)
-            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료"]
+            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료", "낙태", "살인", "의료진", "구속", "선고"]
             if any(k in text for k in exclusion_keywords):
                 if any(v in text for v in ["현대약품", "다이이찌산쿄"]):
                     pass # VIP bypass - don't drop if it's a priority client
@@ -317,7 +317,7 @@ def rank_articles():
             is_obesity = any(t in text for t in obesity_terms)
             if is_obesity:
                 if any(k in text for k in ['품절', '공급부족', '수급불균형', '공급 차질']):
-                    strategic_score += 5.0 # High priority for supply issues
+                    strategic_score += 10.0 # Massive boost for supply issues (User Request)
                 if any(k in text for k in ['중국', '미국', '해외 공장', '해외 투자']) and not any(k in text for k in ['한국', '국내']):
                     strategic_score -= 3.0 # Deprioritize foreign investment unless local context exists
             
@@ -336,9 +336,9 @@ def rank_articles():
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.7) + (Strategic_Score * 0.3)
-        # Restoring 70/30 weight per original objective
-        df['final_score'] = (df['lgbm_component'] * 0.7) + (df['strategic_score'] * 0.3)
+        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
+        # 60/40 weight as requested by the user
+        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
         
         # Category-balanced selection for top results
         print("  - Applying category balancing...")

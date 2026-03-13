@@ -221,7 +221,7 @@ EXCLUDED_KEYWORDS = [
     "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
     "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
     "채용", "신입사원", "공채", "원서접수", "고양이",
-    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴"
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴", "낙태", "살인", "의료진", "구속", "선고"
 ]
 
 GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
@@ -412,14 +412,30 @@ def load_weekly_data():
             df['keywords'] = ''
             
         # --- Apply Cached Filters Here (Performance Optimization) ---
-        # 1. Internal Keyword Strict Filter
-        df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
-        df = df[df['has_internal_kw']]
-        
-        # 2. Noise Filter
-        if not df.empty:
-            df['is_noise'] = df.apply(is_noise_article, axis=1)
-            df = df[~df['is_noise']]
+        # If the file is 'AI Ranked' and has 'is_top20', we trust those 20 regardless of secondary filters
+        # This prevents the 20 -> 13 drop reported by the user.
+        if 'is_top20' in df.columns and df['is_top20'].any():
+            # Keep all is_top20 articles, and for the rest, apply strict filters
+            top20_df = df[df['is_top20'] == True]
+            other_df = df[df['is_top20'] != True]
+            
+            # Apply filters to 'others'
+            other_df['has_internal_kw'] = other_df['keywords'].apply(has_internal_keyword)
+            other_df = other_df[other_df['has_internal_kw']]
+            if not other_df.empty:
+                other_df['is_noise'] = other_df.apply(is_noise_article, axis=1)
+                other_df = other_df[~other_df['is_noise']]
+            
+            df = pd.concat([top20_df, other_df]).drop_duplicates(subset=['url'])
+        else:
+            # Traditional filtering for non-ranked data
+            df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
+            df = df[df['has_internal_kw']]
+            
+            # 2. Noise Filter
+            if not df.empty:
+                df['is_noise'] = df.apply(is_noise_article, axis=1)
+                df = df[~df['is_noise']]
             
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
