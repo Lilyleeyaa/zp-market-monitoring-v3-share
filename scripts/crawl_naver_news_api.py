@@ -202,10 +202,10 @@ def is_noise_article(text):
 
     return False
 
-def deduplicate_articles(articles, threshold=0.80):
+def deduplicate_articles(articles, threshold=0.40):
     """
     Remove articles with similar title + description using SequenceMatcher
-    Threshold lowered to 0.80 for stricter deduplication (catching rephrased ads)
+    Threshold lowered to 0.40 for stricter deduplication (catching rephrased ads)
     """
     if not articles:
         return []
@@ -216,21 +216,32 @@ def deduplicate_articles(articles, threshold=0.80):
     # Sort by length (descending) to prefer longer/richer content
     articles.sort(key=lambda x: len(x.get('summary', '')) if x.get('summary') else 0, reverse=True)
     
+    def clean_text(t):
+        if not t: return ""
+        return re.sub(r'[\s\[\]\(\)\{\}\.\,\'\"\_\-\~\!\@\#\$\%\^\&\*\+\=\|\\\:\/\?\<\>]', '', t).lower()
+
     for article in articles:
         is_duplicate = False
-        # Combine title and summary for comparison (Stronger deduplication)
-        current_text = article['title'] + " " + article['summary']
+        current_text = str(article.get('title', '')) + " " + str(article.get('summary', ''))
+        current_clean = clean_text(current_text)
         
+        if len(current_clean) < 10:
+            unique_articles.append(article)
+            continue
+            
         for existing in unique_articles:
-            existing_text = existing['title'] + " " + existing['summary']
+            existing_text = str(existing.get('title', '')) + " " + str(existing.get('summary', ''))
+            existing_clean = clean_text(existing_text)
             
-            # SequenceMatcher is O(N*M), but fine for < 500 articles
-            similarity = difflib.SequenceMatcher(None, current_text, existing_text).ratio()
+            if len(existing_clean) < 10: continue
             
-            # Increased threshold slightly to avoid false positives with long common boilerplate
-            if similarity >= threshold:
+            # Use Overlap Coefficient instead of raw ratio to handle varied summary lengths
+            matcher = difflib.SequenceMatcher(None, current_clean, existing_clean)
+            match_len = sum(triple.size for triple in matcher.get_matching_blocks())
+            overlap_ratio = match_len / min(len(current_clean), len(existing_clean))
+            
+            if overlap_ratio >= threshold:
                 is_duplicate = True
-                # print(f"  [Duplicate] ({similarity:.2f}) {article['title'][:30]}... <==> {existing['title'][:30]}...")
                 break
         
         if not is_duplicate:
@@ -303,41 +314,38 @@ def tokenize_title(title):
     
     return tokens
 
-def is_similar_to_seen(new_article_text, existing_articles, threshold=0.85):
+def is_similar_to_seen(new_article_text, existing_articles, threshold=0.40):
     """
-    Check if article is similar using semantic similarity (if NLP enabled)
-    Falls back to Jaccard similarity if NLP not available
-    
-    Args:
-        new_article_text: New article title + summary (User enforced Title+Body check)
-        existing_articles: List of existing articles (dicts with 'title', 'summary')
-        threshold: Similarity threshold (0.85 for semantic, 0.4 for Jaccard)
+    Check if article is similar using SequenceMatcher on characters.
+    This naturally solves the Korean postposition problem (은/는/이/가) 
+    that breaks token-based Jaccard similarity without a morphological analyzer.
     """
-    # Always use fast Jaccard similarity (semantic embedding is too slow for bulk crawling)
-    new_tokens = tokenize_title(new_article_text)
-    if not new_tokens: return False
+    if not new_article_text: return False
     
+    def clean_text(t):
+        if not t: return ""
+        # Remove spaces and special characters to maximize character block matching
+        return re.sub(r'[\s\[\]\(\)\{\}\.\,\'\"\_\-\~\!\@\#\$\%\^\&\*\+\=\|\\\:\/\?\<\>]', '', t).lower()
+
+    new_clean = clean_text(new_article_text)
+    if len(new_clean) < 10: return False
+    
+    # 500 articles is fast enough for SequenceMatcher (O(N*M))
     recent_articles = existing_articles[-500:]
     
     for art in recent_articles:
-        # Compare Title + Summary for stronger deduplication (V2 approach - user requested)
-        existing_text = art.get('title', '') + " " + art.get('summary', '') 
-        existing_tokens = tokenize_title(existing_text)
+        exist_text = str(art.get('title', '')) + " " + str(art.get('summary', ''))
+        exist_clean = clean_text(exist_text)
         
-        if not existing_tokens: continue
+        if len(exist_clean) < 10: continue
         
-        intersection = len(new_tokens.intersection(existing_tokens))
-        union = len(new_tokens.union(existing_tokens))
+        # Use Overlap Coefficient instead of raw ratio to handle vastly different summary lengths
+        # (e.g. one article has 300 chars summary, another has 70 chars, but core text is identical)
+        matcher = difflib.SequenceMatcher(None, new_clean, exist_clean)
+        match_len = sum(triple.size for triple in matcher.get_matching_blocks())
+        overlap_ratio = match_len / min(len(new_clean), len(exist_clean))
         
-        if union == 0: continue
-        similarity = intersection / union
-        
-        # Hybrid tokenization with stricter threshold to reduce noise
-        # 2+ shared tokens OR 60%+ similarity = duplicate (Reduced from 3/30%)
-        # Note: Since we use more text (Title+Summary), the overlap should be naturally higher.
-        # We keep 0.6 as a conservative threshold for now.
-        if similarity >= 0.6:
-            # print(f"  [Skip Duplicate] {similarity:.2f}")
+        if overlap_ratio >= threshold:
             return True
             
     return False
