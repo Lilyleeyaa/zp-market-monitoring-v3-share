@@ -91,8 +91,10 @@ def rank_articles():
         # Step 4: Load model & scaler
         print("\n[Step 4/6] Loading model & scaler...")
         try:
-            if not HAS_LGBM:
-                 raise ImportError("LightGBM module not loaded")
+            print("[INFO] AI Model temporarily disabled to bypass local environment crashes.")
+            use_model = False # Force fallback (Strategic Only) to prevent lib_lightgbm segfaults
+            if not HAS_LGBM or not use_model:
+                 raise ImportError("LightGBM module not loaded or disabled")
             
             model = lgb.Booster(model_file=MODEL_PATH)
             # Use joblib instead of pickle for better numpy compatibility
@@ -159,9 +161,15 @@ def rank_articles():
             
             # Step 6: Prediction
             print("\n[Step 6/6] Running LightGBM prediction...")
-            scores = model.predict(X_scaled)
-            print(f"[OK] Predicted scores for {len(scores)} articles")
-            df['lgbm_score'] = scores
+            try:
+                scores = model.predict(X_scaled)
+                print(f"[OK] Predicted scores for {len(scores)} articles")
+                df['lgbm_score'] = scores
+            except Exception as e:
+                print(f"[ERROR] LightGBM prediction failed: {str(e)}")
+                print("       Fallback: Using raw strategic score component.")
+                df['lgbm_score'] = 0
+                use_model = False # Force fallback logic in final combination
         else:
             print("\n[Step 5/6] Skipping feature extraction (no model)")
             print("\n[Step 6/6] Using score_ag only for ranking...")
@@ -276,9 +284,7 @@ def rank_articles():
                 strategic_score += 2.0
                 
             if has_clinical:
-                if any(v in text for v in ["현대약품", "다이이찌산쿄"]):
-                    strategic_score += 0  # VIP articles bypass clinical penalties
-                elif has_commercial:
+                if has_commercial:
                     strategic_score -= 2.0  # Commercial context (e.g. "Phase 3 complete, Launch imminent") -> Mild Penalty
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
@@ -293,17 +299,14 @@ def rank_articles():
                     strategic_score -= 5.0  # Milder penalty for very generic IR news
             
             # 7. VIP Client boost (User cited specific MNCs and major domestics)
-            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜", "현대약품", "다이이찌산쿄"]
+            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜"]
             if any(k in text for k in vip_keywords):
                 strategic_score += 4.0
 
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료", "낙태", "살인", "의료진", "구속", "선고"]
             if any(k in text for k in exclusion_keywords):
-                if any(v in text for v in ["현대약품", "다이이찌산쿄"]):
-                    pass # VIP bypass - don't drop if it's a priority client
-                else:
-                    strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
+                strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
             # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
             if row.get('category') == 'Distribution':
@@ -317,7 +320,7 @@ def rank_articles():
             is_obesity = any(t in text for t in obesity_terms)
             if is_obesity:
                 if any(k in text for k in ['품절', '공급부족', '수급불균형', '공급 차질']):
-                    strategic_score += 10.0 # Massive boost for supply issues (User Request)
+                    strategic_score += 4.0 # Balanced boost for supply issues
                 if any(k in text for k in ['중국', '미국', '해외 공장', '해외 투자']) and not any(k in text for k in ['한국', '국내']):
                     strategic_score -= 3.0 # Deprioritize foreign investment unless local context exists
             

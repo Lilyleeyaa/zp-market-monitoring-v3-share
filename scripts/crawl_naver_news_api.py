@@ -174,8 +174,8 @@ def is_noise_article(text):
     if not text: return False
     
     # --- SAFEGUARD: Always keep specific companies regardless of noise keywords ---
-    # Exception for GeoYoung/Zuellig/BlueMtek logistics & stock news
-    SAFEGUARD_KEYWORDS = ["지오영", "쥴릭", "블루엠텍"]
+    # Exception for GeoYoung/Zuellig/BlueMtek logistics & stock news + VIP Clients
+    SAFEGUARD_KEYWORDS = ["지오영", "쥴릭", "블루엠텍", "현대약품", "다이이찌산쿄"]
     for safe_kw in SAFEGUARD_KEYWORDS:
         if safe_kw in text:
             return False # Not noise if these keywords are present
@@ -203,10 +203,10 @@ def is_noise_article(text):
 
     return False
 
-def deduplicate_articles(articles, threshold=0.40):
+def deduplicate_articles(articles, threshold=0.75):
     """
     Remove articles with similar title + description using SequenceMatcher
-    Threshold lowered to 0.40 for stricter deduplication (catching rephrased ads)
+    Threshold set to 0.75 to balance deduplication and content variety.
     """
     if not articles:
         return []
@@ -315,7 +315,7 @@ def tokenize_title(title):
     
     return tokens
 
-def is_similar_to_seen(new_article_text, existing_articles, threshold=0.40):
+def is_similar_to_seen(new_article_text, existing_articles, threshold=0.75):
     """
     Check if article is similar using SequenceMatcher on characters.
     This naturally solves the Korean postposition problem (은/는/이/가) 
