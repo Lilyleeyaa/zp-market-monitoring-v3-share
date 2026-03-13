@@ -274,7 +274,11 @@ def tokenize_title(title):
     
     tokens = set()
     
-    # Clean text
+    # Replace hyphens/dashes with space FIRST so '현대약품-한국다이이찌산쿄'
+    # becomes two separate tokens ('현대약품', '한국다이이찌산쿄')
+    title = re.sub(r'[-–—·]', ' ', title)
+    
+    # Clean text (keep Korean, English, numbers, spaces)
     clean = re.sub(r'[^0-9a-zA-Z가-힣\s]', '', title)
     text_lower = clean.lower()
     
@@ -772,8 +776,9 @@ def main():
                     if relevance < 0.3:  # Filter low relevance
                         continue
                 
-                # Check title similarity (V1 approach)
-                if is_similar_to_seen(art['title'], all_articles):
+                # Pass title+summary for symmetric comparison (title-only misses overlap in body)
+                art_text = art['title'] + " " + art.get('summary', '')
+                if is_similar_to_seen(art_text, all_articles):
                     continue
                 
                 # KEYWORD RELEVANCE CHECK (from V1 - critical for filtering!)

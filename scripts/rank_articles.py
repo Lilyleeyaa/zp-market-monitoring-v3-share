@@ -405,30 +405,6 @@ def rank_articles():
             print(f'  [Diversity Cap] Obesity articles capped at {MAX_OBESITY} (was {obesity_count} candidates)')
             # --- End Obesity Cap ---
             
-            # --- Co-promotion Diversity Cap ---
-            # Same deal often covered by 3+ outlets → cap to 1 article.
-            COPROM_TERMS = ['코프로모션', '공동판매', 'co-promotion']
-            MAX_COPROM = 1
-            coprom_count = 0
-            coprom_filtered = []
-            df_balanced_list = df_balanced.to_dict('records') if isinstance(df_balanced, pd.DataFrame) else [r.to_dict() if hasattr(r, 'to_dict') else r for r in df_balanced]
-            for brow in df_balanced_list:
-                btext = (str(brow.get('title', '')) + ' ' +
-                         str(brow.get('summary', '')) + ' ' +
-                         str(brow.get('keywords', ''))).lower()
-                is_coprom = any(t.lower() in btext for t in COPROM_TERMS)
-                if is_coprom:
-                    if coprom_count < MAX_COPROM:
-                        coprom_filtered.append(brow)
-                        coprom_count += 1
-                    # else: skip duplicate co-promotion article
-                else:
-                    coprom_filtered.append(brow)
-            if coprom_filtered:
-                df_balanced = pd.DataFrame(coprom_filtered)
-            print(f'  [Diversity Cap] Co-promotion articles capped at {MAX_COPROM} (was {coprom_count} candidates)')
-            # --- End Co-promotion Cap ---
-            
             # Use balanced top 20 for display, but save full sorted list
             df_top20_display = df_balanced.head(20)
         else:
