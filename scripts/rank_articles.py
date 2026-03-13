@@ -339,6 +339,7 @@ def rank_articles():
         # Target: Exactly 20 articles with diverse categories and diversity caps
         selected_urls = set()
         df_top20_list = []
+        categories = df['category'].unique()
         
         OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
         MAX_OBESITY = 1
