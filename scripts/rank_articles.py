@@ -324,8 +324,10 @@ def rank_articles():
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
-        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
+        # Final_Score = (LGBM_Component * 0.4) + (Strategic_Score * 0.6)
+        # We REVERTED to 0.4/0.6 because 0.6/0.4 caused strategy-heavy BD/Client
+        # articles to drop below the 8.0 rank threshold.
+        df['final_score'] = (df['lgbm_component'] * 0.4) + (df['strategic_score'] * 0.6)
         
         # Removed boost_zuellig as it caps score at 10.0, which is lower than the new max score (~14.2).
         # Zuellig articles now naturally score high via Base(10) + Keywords.
