@@ -405,10 +405,6 @@ def rank_articles():
         else:
             df_sorted['is_top20'] = False
             df_top20_display = df_sorted.head(0)
-        else:
-             df_sorted['is_top20'] = False
-             df_sorted.loc[df_sorted.index[:20], 'is_top20'] = True
-             df_top20_display = df_sorted.head(20)
         
         # Step 8: Save results
         print("\n[Step 8/8] Saving results...")
