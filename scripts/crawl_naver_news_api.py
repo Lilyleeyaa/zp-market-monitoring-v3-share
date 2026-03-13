@@ -673,7 +673,7 @@ def calculate_score_by_category(category):
         'Distribution': 10,   # Core Business (Highest)
         'Zuellig': 10,        # Company News (Critical)
         'Client': 10,         # Key Partners (Equal to Distribution - User Request)
-        'BD': 8,              # Future Growth (High)
+        'BD': 10,             # Future Growth (High) - equal to core categories (코프로모션/공동판매 must appear)
         # Others (Approval, Reimbursement, Supply) will default to 2
     }
     
