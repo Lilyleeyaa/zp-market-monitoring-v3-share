@@ -268,6 +268,17 @@ def has_internal_keyword(row_keywords):
 
 # Duplicate translation logic removed. Using the function defined above.
 
+def handle_like(row_dict):
+    """
+    on_click callback for thumbs-up button.
+    Executes BEFORE Streamlit rerun, so the click is never silently dropped.
+    """
+    try:
+        save_feedback(row_dict, 1)
+        st.toast("Saved!", icon="👍")
+    except Exception as e:
+        st.toast(f"Error: {e}", icon="⚠️")
+
 def save_feedback(row, label):
     """
     Save feedback to GitHub repo via REST API (persistent across Streamlit Cloud reboots).
@@ -602,32 +613,32 @@ if selected_keywords:
     mask = mask & (df['keywords'].isin(selected_keywords))
 
 if show_ai_only and 'lgbm_score' in df.columns:
-    VIP_KEYWORDS = [
-        'DKSH', 'GSK', 'MSD', '공동판매', '노바티스', '노보노디스크',
-        '라미실', '로슈', '릴리', '블루엠텍', '사노피', '암젠', '오가논',
-        '위고비', '쥴릭', '지오영', '코프로모션', '특허만료', '한독', '화이자',
-        '메나리니'
-    ]
     df_temp = df[mask]
-    
     score_col = 'final_score' if 'final_score' in df_temp.columns else 'lgbm_score'
     
-    # 1. AI Top 20
-    ai_threshold = 0.18
-    ai_candidates = df_temp[df_temp[score_col] >= ai_threshold]
-    top_ai = ai_candidates.nlargest(20, score_col)
-    
-    # 2. VIP Top 5 (Safety net)
-    vip_pattern = '|'.join(VIP_KEYWORDS)
-    has_vip = df_temp[
-        df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
-        df_temp['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
-    ]
-    vip_threshold = 0.01
-    vip_candidates = has_vip[has_vip[score_col] >= vip_threshold]
-    top_vip = vip_candidates.nlargest(5, score_col)
-    
-    filtered_df = pd.concat([top_ai, top_vip]).drop_duplicates(subset=['url'])
+    # Prefer is_top20 flag produced by rank_articles.py.
+    # rank_articles already does category balancing + obesity cap,
+    # so we trust it rather than re-ranking independently here.
+    if 'is_top20' in df_temp.columns and df_temp['is_top20'].any():
+        filtered_df = df_temp[df_temp['is_top20'] == True]
+    else:
+        # Fallback (when file has no is_top20 column)
+        VIP_KEYWORDS = [
+            'DKSH', 'GSK', 'MSD', '공동판매', '노바티스', '노보노디스크',
+            '라미실', '로슈', '릴리', '블루엠텍', '사노피', '암젠', '오가논',
+            '위고비', '쥴릭', '지오영', '코프로모션', '특허만료', '한독', '화이자',
+            '메나리니'
+        ]
+        ai_threshold = 0.18
+        ai_candidates = df_temp[df_temp[score_col] >= ai_threshold]
+        top_ai = ai_candidates.nlargest(20, score_col)
+        vip_pattern = '|'.join(VIP_KEYWORDS)
+        has_vip = df_temp[
+            df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
+            df_temp['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
+        ]
+        top_vip = has_vip[has_vip[score_col] >= 0.01].nlargest(5, score_col)
+        filtered_df = pd.concat([top_ai, top_vip]).drop_duplicates(subset=['url'])
 else:
     filtered_df = df[mask]
 
@@ -709,12 +720,14 @@ for cat in sorted_categories:
             ''', unsafe_allow_html=True)
         
         with c_btn:
-            # Small, transparent Like button (Light Skin Tone to avoid Yellow)
-            if st.button("👍🏻", key=f"like_{cat}_{_}_{url[-5:]}", help="Good"):
-                try:
-                    save_feedback(row, 1)
-                    st.toast("Saved!", icon="👍")
-                except Exception as e:
-                    st.toast(f"Error: {e}", icon="⚠️")
+            # on_click callback fires BEFORE Streamlit rerun,
+            # so the click is guaranteed to be processed every time.
+            st.button(
+                "👍🏻",
+                key="like_" + str(hash(url)),
+                on_click=handle_like,
+                args=(row.to_dict(),),
+                help="Good"
+            )
 
 

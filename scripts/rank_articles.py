@@ -368,6 +368,32 @@ def rank_articles():
                 ].head(20 - len(df_balanced))
                 df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
             
+            # --- Obesity Diversity Cap (Auto) ---
+            # Limit articles that directly mention obesity drugs to max 1 in Top 20.
+            # This auto-handles topic flooding without manual cluster definitions.
+            # Note: Company names (e.g. 노보노디스크, 릴리) are NOT included here
+            # so non-obesity articles from those companies still pass freely.
+            OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
+            MAX_OBESITY = 1
+            obesity_count = 0
+            filtered_rows = []
+            for _, brow in df_balanced.iterrows():
+                btext = (str(brow.get('title', '')) + ' ' +
+                         str(brow.get('summary', '')) + ' ' +
+                         str(brow.get('keywords', ''))).lower()
+                is_obesity = any(t.lower() in btext for t in OBESITY_DRUG_TERMS)
+                if is_obesity:
+                    if obesity_count < MAX_OBESITY:
+                        filtered_rows.append(brow)
+                        obesity_count += 1
+                    # else: skip this obesity article
+                else:
+                    filtered_rows.append(brow)
+            if filtered_rows:
+                df_balanced = pd.DataFrame(filtered_rows)
+            print(f'  [Diversity Cap] Obesity articles capped at {MAX_OBESITY} (was {obesity_count} candidates)')
+            # --- End Obesity Cap ---
+            
             # Use balanced top 20 for display, but save full sorted list
             df_top20_display = df_balanced.head(20)
         else:
