@@ -9,9 +9,9 @@ np.random.seed(42)
 
 import pandas as pd
 import os
-import pickle
-import pickle
 import glob
+import re
+import joblib
 try:
     import lightgbm as lgb
     HAS_LGBM = True
@@ -54,7 +54,6 @@ def rank_articles():
             print("[ERROR] No article CSVs found.")
             return
         
-        import re
         def extract_date_from_filename(filepath):
             basename = os.path.basename(filepath)
             match = re.search(r'_(\d{8})\.csv$', basename)
@@ -92,7 +91,6 @@ def rank_articles():
         # Step 4: Load model & scaler
         print("\n[Step 4/6] Loading model & scaler...")
         try:
-            import joblib
             if not HAS_LGBM:
                  raise ImportError("LightGBM module not loaded")
             
@@ -300,7 +298,7 @@ def rank_articles():
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "사료", "동물", "반려동물"]
             if any(k in text for k in exclusion_keywords):
-                strategic_score -= 20.0 # Force remove
+                strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
             # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
             if row.get('category') == 'Distribution':
@@ -328,12 +326,11 @@ def rank_articles():
         # Weighting heavily towards AI model per user request
         df['final_score'] = (df['lgbm_component'] * 0.7) + (df['strategic_score'] * 0.3)
         
-        # Removed boost_zuellig as it caps score at 10.0, which is lower than the new max score (~14.2).
-        # Zuellig articles now naturally score high via Base(10) + Keywords.
-        
-        # Category-balanced selection for top results
-        print("  - Applying category balancing...")
-        df_sorted = df.sort_values(by='final_score', ascending=False)
+        # --- Hard Exclusion (User Request: animal/feed) ---
+        # Dropping them completely from the display candidates to be 100% safe
+        exclude_pool = ["사료", "동물", "반려동물"]
+        df['is_excluded'] = df.apply(lambda r: any(k in (str(r['title'])+str(r['summary'])).lower() for k in exclude_pool), axis=1)
+        df_sorted = df[df['is_excluded'] == False].sort_values(by='final_score', ascending=False)
         
         # Strategy: Pick top articles from each category proportionally
         # Target: Exactly 20 articles with diverse categories and diversity caps
