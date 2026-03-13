@@ -293,12 +293,12 @@ def rank_articles():
                     strategic_score -= 5.0  # Milder penalty for very generic IR news
             
             # 7. VIP Client boost (User cited specific MNCs and major domestics)
-            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜"]
+            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜", "현대약품", "다이이찌산쿄"]
             if any(k in text for k in vip_keywords):
                 strategic_score += 4.0
 
             # 8. Specific Exclusion (User Request)
-            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠"]
+            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "사료", "동물", "반려동물"]
             if any(k in text for k in exclusion_keywords):
                 strategic_score -= 20.0 # Force remove
                 
@@ -336,98 +336,75 @@ def rank_articles():
         df_sorted = df.sort_values(by='final_score', ascending=False)
         
         # Strategy: Pick top articles from each category proportionally
-        # Target: ~20 articles with diverse categories
-        balanced_selection = []
-        categories = df['category'].unique()
+        # Target: Exactly 20 articles with diverse categories and diversity caps
+        selected_urls = set()
+        df_top20_list = []
         
-        # First pass: Top 3 from Distribution/Zuellig, Top 8 from BD/Client
-        # BD/Client slots raised to 8 so high-scoring articles aren't excluded from
-        # the pool before the final sort (was 5, causing articles ranked 6-8 to be cut)
-        for cat in ['Distribution', 'Zuellig']:
+        OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
+        MAX_OBESITY = 1
+        obesity_count = 0
+
+        def is_obesity_article(row):
+            text = (str(row.get('title', '')) + ' ' + str(row.get('summary', '')) + ' ' + str(row.get('keywords', ''))).lower()
+            return any(t.lower() in text for t in OBESITY_DRUG_TERMS)
+
+        # 1. First pass: High priority category guarantees
+        for cat, limit in [('Distribution', 3), ('Zuellig', 3), ('BD', 8), ('Client', 8)]:
             if cat in categories:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(3)
-                balanced_selection.append(cat_articles)
-        
-        for cat in ['BD', 'Client']:
-            if cat in categories:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(8)
-                balanced_selection.append(cat_articles)
-        
-        # Second pass: Max 1 from non-core categories (only if final_score >= 5.0)
-        # Reduced from 2→1 and threshold raised 4.0→5.0 so non-core categories
-        # don't consume slots away from important Client/BD articles.
+                cat_pool = df_sorted[df_sorted['category'] == cat]
+                added_in_cat = 0
+                for _, row in cat_pool.iterrows():
+                    if added_in_cat >= limit: break
+                    if row['url'] in selected_urls: continue
+                    
+                    is_ob = is_obesity_article(row)
+                    if is_ob and obesity_count >= MAX_OBESITY: continue
+                    
+                    df_top20_list.append(row)
+                    selected_urls.add(row['url'])
+                    added_in_cat += 1
+                    if is_ob: obesity_count += 1
+
+        # 2. Second pass: Max 1 from secondary categories
         MIN_SCORE_OTHER = 5.0
         for cat in categories:
             if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
-                cat_articles = df_sorted[
-                    (df_sorted['category'] == cat) &
-                    (df_sorted['final_score'] >= MIN_SCORE_OTHER)
-                ].head(1)
-                balanced_selection.append(cat_articles)
-        
-        # Combine and re-sort by score
-        if balanced_selection:
-            df_balanced = pd.concat(balanced_selection, ignore_index=True)
-            df_balanced = df_balanced.drop_duplicates(subset=['url'])
-            df_balanced = df_balanced.sort_values(by='final_score', ascending=False)
-            
-            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 6.5)
-            # Threshold lowered to 6.5 to ensure 20 items compile even with 70/30 LGBM/Strategy weight
-            if len(df_balanced) < 20:
-                high_quality_remaining = df_sorted[
-                    (~df_sorted['url'].isin(df_balanced['url'])) & 
-                    (df_sorted['final_score'] >= 6.5)
-                ].head(20 - len(df_balanced))
-                df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
-            
-            # --- Obesity Diversity Cap (Auto) ---
-            # Limit articles that directly mention obesity drugs to max 1 in Top 20.
-            # This auto-handles topic flooding without manual cluster definitions.
-            # Note: Company names (e.g. 노보노디스크, 릴리) are NOT included here
-            # so non-obesity articles from those companies still pass freely.
-            OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
-            MAX_OBESITY = 1
-            obesity_count = 0
-            filtered_rows = []
-            for _, brow in df_balanced.iterrows():
-                btext = (str(brow.get('title', '')) + ' ' +
-                         str(brow.get('summary', '')) + ' ' +
-                         str(brow.get('keywords', ''))).lower()
-                is_obesity = any(t.lower() in btext for t in OBESITY_DRUG_TERMS)
-                if is_obesity:
-                    if obesity_count < MAX_OBESITY:
-                        filtered_rows.append(brow)
-                        obesity_count += 1
-                    # else: skip this obesity article
-                else:
-                    filtered_rows.append(brow)
-            if filtered_rows:
-                df_balanced = pd.DataFrame(filtered_rows)
-            print(f'  [Diversity Cap] Obesity articles capped at {MAX_OBESITY} (was {obesity_count} candidates)')
-            # --- End Obesity Cap ---
-            
-            # Use balanced top 20 for display, but save full sorted list
-            df_top20_display = df_balanced.head(20)
-        else:
-            df_top20_display = df_sorted[df_sorted['final_score'] >= 9.0].head(20)
+                 cat_pool = df_sorted[df_sorted['category'] == cat]
+                 for _, row in cat_pool.iterrows():
+                     if row['final_score'] < MIN_SCORE_OTHER: break
+                     if row['url'] in selected_urls: continue
+                     
+                     is_ob = is_obesity_article(row)
+                     if is_ob and obesity_count >= MAX_OBESITY: continue
+                     
+                     df_top20_list.append(row)
+                     selected_urls.add(row['url'])
+                     if is_ob: obesity_count += 1
+                     break # Only 1 per secondary category
 
-        
-        # Step 7: Clean & Re-rank
-        print("\n[Step 7/7] Finalizing constraints...")
-        
-        # Update display list with new sorted top 20
-        # df_top20_display = df_sorted.head(20) # WARNING: This was unwinding the balance!
-        
-        # CORRECT LOGIC: Re-apply balance if needed or use the balanced list if it was created
-        if balanced_selection:
-             # df_balanced is already sorted by final_score and contains the balanced set
-             df_top20_balanced = df_balanced.head(20)
-             
-             # Mark these as Top 20 in the full list
-             df_sorted['is_top20'] = df_sorted['url'].isin(df_top20_balanced['url'])
-             
-             # Use balanced list for display
-             df_top20_display = df_top20_balanced
+        # 3. Third pass: Fill remaining slots until 20
+        # No absolute score threshold (picks best available) to guarantee 20 count
+        for _, row in df_sorted.iterrows():
+            if len(df_top20_list) >= 20: break
+            if row['url'] in selected_urls: continue
+            
+            is_ob = is_obesity_article(row)
+            if is_ob and obesity_count >= MAX_OBESITY: continue
+            
+            df_top20_list.append(row)
+            selected_urls.add(row['url'])
+            if is_ob: obesity_count += 1
+
+        if df_top20_list:
+            df_top20_balanced = pd.DataFrame(df_top20_list).sort_values(by='final_score', ascending=False)
+            df_top20_balanced = df_top20_balanced.head(20)
+            
+            # Mark is_top20 in the main dataframe
+            df_sorted['is_top20'] = df_sorted['url'].isin(df_top20_balanced['url'])
+            df_top20_display = df_top20_balanced
+        else:
+            df_sorted['is_top20'] = False
+            df_top20_display = df_sorted.head(0)
         else:
              df_sorted['is_top20'] = False
              df_sorted.loc[df_sorted.index[:20], 'is_top20'] = True
