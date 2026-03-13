@@ -202,9 +202,9 @@ def rank_articles():
         print("  - Calculating final scores...")
         
         if use_model:
-            # Use weighted combination of LGBM prediction and original score
-            LGBM_WEIGHT = 0.3      # Reduced from 0.7 (low confidence in model)
-            SCOREAG_WEIGHT = 0.7    # Increased from 0.3 (rely on rules)
+            # LGBM weight increased to 0.6 - feedback data is being reflected well
+            LGBM_WEIGHT = 0.6      # Increased from 0.3 (model now learning from thumbs-up)
+            SCOREAG_WEIGHT = 0.4    # Decreased from 0.7
             
             # Normalize each score to 0-1 range separately
             df['score_ag_norm'] = df['score_ag'].clip(0, 10) / 10  # Assume max 10
@@ -248,6 +248,10 @@ def rank_articles():
             ]
             has_commercial = any(k in text for k in commercial_keywords)
             
+            # 2-1. Co-promotion MUST appear — extra strong boost
+            COPROM_TERMS = ["코프로모션", "공동판매", "co-promotion", "코프로"]
+            has_coprom = any(k in text for k in COPROM_TERMS)
+            
             # 3. Market Dynamic Keywords (+2.0)
             market_keywords = [
                 "지오영", "백제", "m&a", "인수", "철수", "한국 법인", "점유율",
@@ -265,7 +269,9 @@ def rank_articles():
             # 5. Calculate Strategic Score
             strategic_score = base_score
             
-            if has_commercial:
+            if has_coprom:
+                strategic_score += 6.0  # Co-promotion: strongest commercial boost (must-see)
+            elif has_commercial:
                 strategic_score += 3.0
             
             if has_market:
@@ -312,17 +318,14 @@ def rank_articles():
         
         if use_model:
             # lgbm_score is 0-1. Scaling to 10.
-            # We also mix in score_ag for robustness (0-10).
-            # let's assume 'LGBM_Score' in user's formula represents the "AI/Quality" Score.
-            # We'll use a mix: 50% LGBM (scaled) + 50% ScoreAG.
-            df['lgbm_component'] = (df['lgbm_score'] * 10 * 0.5) + (df['score_ag'] * 0.5)
+            # LGBM share increased to 70% within component (was 50%)
+            df['lgbm_component'] = (df['lgbm_score'] * 10 * 0.7) + (df['score_ag'] * 0.3)
         else:
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.4) + (Strategic_Score * 0.6)
-        
-        df['final_score'] = (df['lgbm_component'] * 0.4) + (df['strategic_score'] * 0.6)
+        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
+        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
         
         # Removed boost_zuellig as it caps score at 10.0, which is lower than the new max score (~14.2).
         # Zuellig articles now naturally score high via Base(10) + Keywords.
@@ -336,21 +339,29 @@ def rank_articles():
         balanced_selection = []
         categories = df['category'].unique()
         
-        # First pass: Top 4 from Distribution/Zuellig/BD, but limit Client to 2
-        for cat in ['Distribution', 'Zuellig', 'BD']:
+        # First pass: Top 3 from Distribution/Zuellig (often fewer articles), Top 5 from BD/Client
+        for cat in ['Distribution', 'Zuellig']:
             if cat in categories:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(4)
+                cat_articles = df_sorted[df_sorted['category'] == cat].head(3)
                 balanced_selection.append(cat_articles)
         
-        # Limit Client category to Top 2 to avoid "trash" articles
-        if 'Client' in categories:
-            client_articles = df_sorted[df_sorted['category'] == 'Client'].head(2)
-            balanced_selection.append(client_articles)
+        # BD and Client: allow up to 5 each (user feedback: these categories have more quality articles)
+        for cat in ['BD', 'Client']:
+            if cat in categories:
+                cat_articles = df_sorted[df_sorted['category'] == cat].head(5)
+                balanced_selection.append(cat_articles)
         
-        # Second pass: Top 1-2 from other categories
+        # Second pass: Top 1-2 from other categories (only if final_score >= 4.0)
+        # This lets LGBM judgment take effect — low-quality articles won't be
+        # force-included just because they're the only ones in a category.
+        # 4.0 threshold: filters TA junk (<4) while keeping good Supply/Reimbursement (5+)
+        MIN_SCORE_OTHER = 4.0
         for cat in categories:
             if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(2)
+                cat_articles = df_sorted[
+                    (df_sorted['category'] == cat) &
+                    (df_sorted['final_score'] >= MIN_SCORE_OTHER)
+                ].head(2)
                 balanced_selection.append(cat_articles)
         
         # Combine and re-sort by score
@@ -367,6 +378,32 @@ def rank_articles():
                     (df_sorted['final_score'] >= 9.0)
                 ].head(20 - len(df_balanced))
                 df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
+            
+            # --- Obesity Diversity Cap (Auto) ---
+            # Limit articles that directly mention obesity drugs to max 1 in Top 20.
+            # This auto-handles topic flooding without manual cluster definitions.
+            # Note: Company names (e.g. 노보노디스크, 릴리) are NOT included here
+            # so non-obesity articles from those companies still pass freely.
+            OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
+            MAX_OBESITY = 1
+            obesity_count = 0
+            filtered_rows = []
+            for _, brow in df_balanced.iterrows():
+                btext = (str(brow.get('title', '')) + ' ' +
+                         str(brow.get('summary', '')) + ' ' +
+                         str(brow.get('keywords', ''))).lower()
+                is_obesity = any(t.lower() in btext for t in OBESITY_DRUG_TERMS)
+                if is_obesity:
+                    if obesity_count < MAX_OBESITY:
+                        filtered_rows.append(brow)
+                        obesity_count += 1
+                    # else: skip this obesity article
+                else:
+                    filtered_rows.append(brow)
+            if filtered_rows:
+                df_balanced = pd.DataFrame(filtered_rows)
+            print(f'  [Diversity Cap] Obesity articles capped at {MAX_OBESITY} (was {obesity_count} candidates)')
+            # --- End Obesity Cap ---
             
             # Use balanced top 20 for display, but save full sorted list
             df_top20_display = df_balanced.head(20)
