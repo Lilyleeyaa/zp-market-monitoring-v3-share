@@ -322,9 +322,9 @@ def rank_articles():
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.7) + (Strategic_Score * 0.3)
-        # Weighting heavily towards AI model per user request
-        df['final_score'] = (df['lgbm_component'] * 0.7) + (df['strategic_score'] * 0.3)
+        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
+        # Slightly increasing Strategic weight to 40% to ensure VIP/Co-prom news pops up
+        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
         
         # --- Hard Exclusion (User Request: animal/feed) ---
         # Dropping them completely from the display candidates to be 100% safe
