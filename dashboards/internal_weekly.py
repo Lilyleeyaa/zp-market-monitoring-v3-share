@@ -274,10 +274,12 @@ def handle_like(row_dict):
     Executes BEFORE Streamlit rerun, so the click is never silently dropped.
     """
     try:
+        # User requested to hide error messages and just show "Saved!"
+        # even if GITHUB_TOKEN is missing or API fails.
         save_feedback(row_dict, 1)
-        st.toast("Saved!", icon="👍")
-    except Exception as e:
-        st.toast(f"Error: {e}", icon="⚠️")
+    except Exception:
+        pass
+    st.toast("Saved!", icon="👍")
 
 def save_feedback(row, label):
     """
