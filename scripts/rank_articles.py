@@ -351,10 +351,17 @@ def rank_articles():
                 cat_articles = df_sorted[df_sorted['category'] == cat].head(5)
                 balanced_selection.append(cat_articles)
         
-        # Second pass: Top 1-2 from other categories
+        # Second pass: Top 1-2 from other categories (only if final_score >= 4.0)
+        # This lets LGBM judgment take effect — low-quality articles won't be
+        # force-included just because they're the only ones in a category.
+        # 4.0 threshold: filters TA junk (<4) while keeping good Supply/Reimbursement (5+)
+        MIN_SCORE_OTHER = 4.0
         for cat in categories:
             if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(2)
+                cat_articles = df_sorted[
+                    (df_sorted['category'] == cat) &
+                    (df_sorted['final_score'] >= MIN_SCORE_OTHER)
+                ].head(2)
                 balanced_selection.append(cat_articles)
         
         # Combine and re-sort by score
