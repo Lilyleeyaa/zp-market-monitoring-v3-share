@@ -324,10 +324,9 @@ def rank_articles():
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.4) + (Strategic_Score * 0.6)
-        # We REVERTED to 0.4/0.6 because 0.6/0.4 caused strategy-heavy BD/Client
-        # articles to drop below the 8.0 rank threshold.
-        df['final_score'] = (df['lgbm_component'] * 0.4) + (df['strategic_score'] * 0.6)
+        # Final_Score = (LGBM_Component * 0.7) + (Strategic_Score * 0.3)
+        # Weighting heavily towards AI model per user request
+        df['final_score'] = (df['lgbm_component'] * 0.7) + (df['strategic_score'] * 0.3)
         
         # Removed boost_zuellig as it caps score at 10.0, which is lower than the new max score (~14.2).
         # Zuellig articles now naturally score high via Base(10) + Keywords.
@@ -372,12 +371,12 @@ def rank_articles():
             df_balanced = df_balanced.drop_duplicates(subset=['url'])
             df_balanced = df_balanced.sort_values(by='final_score', ascending=False)
             
-            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 8.0)
-            # Do not force 20 articles if relevance is low
+            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 7.8)
+            # Threshold lowered to 7.8 to match the 70/30 LGBM/Strategy weight which naturally lowers scores
             if len(df_balanced) < 20:
                 high_quality_remaining = df_sorted[
                     (~df_sorted['url'].isin(df_balanced['url'])) & 
-                    (df_sorted['final_score'] >= 8.0)
+                    (df_sorted['final_score'] >= 7.8)
                 ].head(20 - len(df_balanced))
                 df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
             
