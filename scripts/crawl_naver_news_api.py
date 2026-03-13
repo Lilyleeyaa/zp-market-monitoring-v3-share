@@ -91,7 +91,7 @@ CLIENT_KEYWORDS = [    "한독", "MSD", "오가논", "화이자", "사노피", "
     "머크", "레코르다티", "셀진", "테바한독", "베링거인겔하임", "BMS", "아스트라제네카", "애브비", "파마노비아", "리제네론",
     "바이엘", "아스텔라스", "얀센", "바이오젠", "입센", "애보트", "안텐진", "베이진", 
     "헤일리온", "오펠라", "켄뷰", "로레알", "메나리니",
-    "위고비", "마운자로", "현대약품", "다이이찌산쿄"]
+    "위고비", "마운자로"]
 
 # 7. Therapeutic
 THERAPEUTIC_KEYWORDS = ["난임", "불임", "항암제"]
@@ -161,7 +161,7 @@ EXCLUDED_KEYWORDS = [
     "로봇", "재활로봇", "보행로봇", "웨어러블", # Device/Tech (unless drug related, usually noise)
     "CRO", "CDMO", "위탁생산", # Manufacturing/Service industry (often B2B ads)
     "임상시험", "임상참여자", "대상자 모집", # Generic Clinical Trial recruitment/info
-    "사료", "동물", "반려동물" # User Request: Exclude animal/feed
+    "사료", "펫푸드", "축산물", "가축" # User Request: Exclude feed/livestock (Targeted to avoid 'animal testing' false positives)
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]
@@ -575,7 +575,7 @@ def get_naver_news_api(query, display=100):
     articles = []
     start = 1
     max_results = 1000  # API limit
-    MAX_ARTICLES_PER_KEYWORD = 50  # <--- Increased from 5 to ensure coverage of specific news
+    MAX_ARTICLES_PER_KEYWORD = 5  # <--- Reverted to 5 to maintain speed
     
     while start <= max_results:
         # Check if we reached the limit for this keyword
@@ -730,14 +730,14 @@ def main():
     
     # Combine all keyword groups for comprehensive search
     keyword_groups = [
-        ("Distribution", DISTRIBUTION_KEYWORDS, 50),
-        ("BD", BD_KEYWORDS, 50),
-        ("Product Approval", APPROVAL_KEYWORDS, 50),
-        ("Reimbursement", REIMBURSEMENT_KEYWORDS, 50),
-        ("Zuellig", ZUELLIG_KEYWORDS, 50),
-        ("Client", CLIENT_KEYWORDS, 50),
-        ("Therapeutic Areas", THERAPEUTIC_KEYWORDS, 50),
-        ("Supply Issues", SUPPLY_KEYWORDS, 50)
+        ("Distribution", DISTRIBUTION_KEYWORDS, 5),
+        ("BD", BD_KEYWORDS, 5),
+        ("Product Approval", APPROVAL_KEYWORDS, 5),
+        ("Reimbursement", REIMBURSEMENT_KEYWORDS, 5),
+        ("Zuellig", ZUELLIG_KEYWORDS, 5),
+        ("Client", CLIENT_KEYWORDS, 5),
+        ("Therapeutic Areas", THERAPEUTIC_KEYWORDS, 5),
+        ("Supply Issues", SUPPLY_KEYWORDS, 5)
     ]
     
     for group_idx, (group_name, keywords, display_count) in enumerate(keyword_groups, 1):

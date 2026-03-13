@@ -296,7 +296,7 @@ def rank_articles():
                 strategic_score += 4.0
 
             # 8. Specific Exclusion (User Request)
-            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "사료", "동물", "반려동물"]
+            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "사료", "펫푸드", "축산물", "가축"]
             if any(k in text for k in exclusion_keywords):
                 strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
@@ -322,15 +322,13 @@ def rank_articles():
             df['lgbm_component'] = df['score_ag'] # Fallback
             
         # Apply Formula
-        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
-        # Slightly increasing Strategic weight to 40% to ensure VIP/Co-prom news pops up
-        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
+        # Final_Score = (LGBM_Component * 0.7) + (Strategic_Score * 0.3)
+        # Restoring 70/30 weight per original objective
+        df['final_score'] = (df['lgbm_component'] * 0.7) + (df['strategic_score'] * 0.3)
         
-        # --- Hard Exclusion (User Request: animal/feed) ---
-        # Dropping them completely from the display candidates to be 100% safe
-        exclude_pool = ["사료", "동물", "반려동물"]
-        df['is_excluded'] = df.apply(lambda r: any(k in (str(r['title'])+str(r['summary'])).lower() for k in exclude_pool), axis=1)
-        df_sorted = df[df['is_excluded'] == False].sort_values(by='final_score', ascending=False)
+        # Category-balanced selection for top results
+        print("  - Applying category balancing...")
+        df_sorted = df.sort_values(by='final_score', ascending=False)
         
         # Strategy: Pick top articles from each category proportionally
         # Target: Exactly 20 articles with diverse categories and diversity caps
