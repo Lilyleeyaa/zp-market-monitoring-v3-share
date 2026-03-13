@@ -370,12 +370,12 @@ def rank_articles():
             df_balanced = df_balanced.drop_duplicates(subset=['url'])
             df_balanced = df_balanced.sort_values(by='final_score', ascending=False)
             
-            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 9.0)
+            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 8.0)
             # Do not force 20 articles if relevance is low
             if len(df_balanced) < 20:
                 high_quality_remaining = df_sorted[
                     (~df_sorted['url'].isin(df_balanced['url'])) & 
-                    (df_sorted['final_score'] >= 9.0)
+                    (df_sorted['final_score'] >= 8.0)
                 ].head(20 - len(df_balanced))
                 df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
             
