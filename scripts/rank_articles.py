@@ -312,6 +312,15 @@ def rank_articles():
                 if '도이치뱅크' in text:
                     strategic_score -= 20.0 # Force remove (User Request)
             
+            # 10. Obesity Refinement (User Request)
+            obesity_terms = ['위고비', '마운자로', '삭센다', '오젬픽', 'glp-1', '비만치료제', '비만약', '비만']
+            is_obesity = any(t in text for t in obesity_terms)
+            if is_obesity:
+                if any(k in text for k in ['품절', '공급부족', '수급불균형', '공급 차질']):
+                    strategic_score += 5.0 # High priority for supply issues
+                if any(k in text for k in ['중국', '미국', '해외 공장', '해외 투자']) and not any(k in text for k in ['한국', '국내']):
+                    strategic_score -= 3.0 # Deprioritize foreign investment unless local context exists
+            
             return max(0, strategic_score)
 
         df['strategic_score'] = df.apply(calculate_bd_strategic_score, axis=1)
@@ -342,7 +351,7 @@ def rank_articles():
         categories = df['category'].unique()
         
         OBESITY_DRUG_TERMS = ['위고비', '마운자로', '삭센다', '오젬픽', 'GLP-1', '비만치료제', '비만약', '비만']
-        MAX_OBESITY = 1
+        MAX_OBESITY = 2
         obesity_count = 0
 
         def is_obesity_article(row):
