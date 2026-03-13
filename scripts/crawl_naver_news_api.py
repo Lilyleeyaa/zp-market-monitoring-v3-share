@@ -161,7 +161,7 @@ EXCLUDED_KEYWORDS = [
     "로봇", "재활로봇", "보행로봇", "웨어러블", # Device/Tech (unless drug related, usually noise)
     "CRO", "CDMO", "위탁생산", # Manufacturing/Service industry (often B2B ads)
     "임상시험", "임상참여자", "대상자 모집", # Generic Clinical Trial recruitment/info
-    "사료", "펫푸드", "축산물", "가축" # User Request: Exclude feed/livestock (Targeted to avoid 'animal testing' false positives)
+    "동물", "사료" # User Request: Simplified exclusion
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]

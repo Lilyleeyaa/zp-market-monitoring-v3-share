@@ -296,7 +296,7 @@ def rank_articles():
                 strategic_score += 4.0
 
             # 8. Specific Exclusion (User Request)
-            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "사료", "펫푸드", "축산물", "가축"]
+            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료"]
             if any(k in text for k in exclusion_keywords):
                 strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
