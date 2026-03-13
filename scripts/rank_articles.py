@@ -339,29 +339,29 @@ def rank_articles():
         balanced_selection = []
         categories = df['category'].unique()
         
-        # First pass: Top 3 from Distribution/Zuellig (often fewer articles), Top 5 from BD/Client
+        # First pass: Top 3 from Distribution/Zuellig, Top 8 from BD/Client
+        # BD/Client slots raised to 8 so high-scoring articles aren't excluded from
+        # the pool before the final sort (was 5, causing articles ranked 6-8 to be cut)
         for cat in ['Distribution', 'Zuellig']:
             if cat in categories:
                 cat_articles = df_sorted[df_sorted['category'] == cat].head(3)
                 balanced_selection.append(cat_articles)
         
-        # BD and Client: allow up to 5 each (user feedback: these categories have more quality articles)
         for cat in ['BD', 'Client']:
             if cat in categories:
-                cat_articles = df_sorted[df_sorted['category'] == cat].head(5)
+                cat_articles = df_sorted[df_sorted['category'] == cat].head(8)
                 balanced_selection.append(cat_articles)
         
-        # Second pass: Top 1-2 from other categories (only if final_score >= 4.0)
-        # This lets LGBM judgment take effect — low-quality articles won't be
-        # force-included just because they're the only ones in a category.
-        # 4.0 threshold: filters TA junk (<4) while keeping good Supply/Reimbursement (5+)
-        MIN_SCORE_OTHER = 4.0
+        # Second pass: Max 1 from non-core categories (only if final_score >= 5.0)
+        # Reduced from 2→1 and threshold raised 4.0→5.0 so non-core categories
+        # don't consume slots away from important Client/BD articles.
+        MIN_SCORE_OTHER = 5.0
         for cat in categories:
             if cat not in ['Distribution', 'Client', 'BD', 'Zuellig']:
                 cat_articles = df_sorted[
                     (df_sorted['category'] == cat) &
                     (df_sorted['final_score'] >= MIN_SCORE_OTHER)
-                ].head(2)
+                ].head(1)
                 balanced_selection.append(cat_articles)
         
         # Combine and re-sort by score
