@@ -160,7 +160,8 @@ EXCLUDED_KEYWORDS = [
     "폭행", "폭언", "사건사고", "경찰", "구속", "적발", # Crime/Social
     "로봇", "재활로봇", "보행로봇", "웨어러블", # Device/Tech (unless drug related, usually noise)
     "CRO", "CDMO", "위탁생산", # Manufacturing/Service industry (often B2B ads)
-    "임상시험", "임상참여자", "대상자 모집" # Generic Clinical Trial recruitment/info
+    "임상시험", "임상참여자", "대상자 모집", # Generic Clinical Trial recruitment/info
+    "사료", "동물", "반려동물" # User Request: Exclude animal/feed
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]

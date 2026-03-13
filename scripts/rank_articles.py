@@ -371,12 +371,12 @@ def rank_articles():
             df_balanced = df_balanced.drop_duplicates(subset=['url'])
             df_balanced = df_balanced.sort_values(by='final_score', ascending=False)
             
-            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 7.8)
-            # Threshold lowered to 7.8 to match the 70/30 LGBM/Strategy weight which naturally lowers scores
+            # Only fill remaining slots with HIGH QUALITY articles (final_score >= 6.5)
+            # Threshold lowered to 6.5 to ensure 20 items compile even with 70/30 LGBM/Strategy weight
             if len(df_balanced) < 20:
                 high_quality_remaining = df_sorted[
                     (~df_sorted['url'].isin(df_balanced['url'])) & 
-                    (df_sorted['final_score'] >= 7.8)
+                    (df_sorted['final_score'] >= 6.5)
                 ].head(20 - len(df_balanced))
                 df_balanced = pd.concat([df_balanced, high_quality_remaining], ignore_index=True)
             
