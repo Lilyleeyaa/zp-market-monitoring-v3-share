@@ -276,7 +276,9 @@ def rank_articles():
                 strategic_score += 2.0
                 
             if has_clinical:
-                if has_commercial:
+                if any(v in text for v in ["현대약품", "다이이찌산쿄"]):
+                    strategic_score += 0  # VIP articles bypass clinical penalties
+                elif has_commercial:
                     strategic_score -= 2.0  # Commercial context (e.g. "Phase 3 complete, Launch imminent") -> Mild Penalty
                 else:
                     strategic_score -= 10.0 # Pure Clinical -> Severe Penalty (Remove from Top 20)
@@ -298,7 +300,10 @@ def rank_articles():
             # 8. Specific Exclusion (User Request)
             exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료"]
             if any(k in text for k in exclusion_keywords):
-                strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
+                if any(v in text for v in ["현대약품", "다이이찌산쿄"]):
+                    pass # VIP bypass - don't drop if it's a priority client
+                else:
+                    strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
             # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
             if row.get('category') == 'Distribution':
