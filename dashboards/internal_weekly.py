@@ -295,8 +295,6 @@ def save_feedback(row, label):
         gh_token = st.session_state.get('gh_token', '')
         gh_repo = st.session_state.get('gh_repo') or 'Lilyleeyaa/zp-market-monitoring-v3-share'
         
-        if not gh_token:
-            raise RuntimeError("GitHub Token missing")
         file_path = "data/labels/feedback_log.csv"
         
         # Prepare feedback row (use csv module for proper quoting)
@@ -316,6 +314,23 @@ def save_feedback(row, label):
         writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
         new_line = buf.getvalue().rstrip("\r\n")
         
+        # 1. Save locally first
+        import os
+        local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "labels")
+        os.makedirs(local_dir, exist_ok=True)
+        local_path = os.path.join(local_dir, "feedback_log.csv")
+        try:
+            if not os.path.exists(local_path):
+                with open(local_path, "w", encoding="utf-8-sig") as f:
+                    f.write("feedback_date,url,title,category,keywords,score_ag,reward\n")
+            with open(local_path, "a", encoding="utf-8-sig") as f:
+                f.write(new_line + "\n")
+            print(f"[OK] Feedback saved locally: {c_title[:40]}...")
+        except Exception as e:
+            print(f"[WARN] Could not save feedback locally: {e}")
+            
+        if not gh_token:
+            return  # Run locally without GitHub sync if token is missing
         
         # GitHub API: Get existing file (or create new)
         api_url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
