@@ -316,39 +316,46 @@ def tokenize_title(title):
     
     return tokens
 
-def is_similar_to_seen(new_article_text, existing_articles, threshold=0.75):
+def is_similar_to_seen(new_article_title, existing_articles, threshold=0.55):
     """
-    Check if article is similar using SequenceMatcher on characters.
-    This naturally solves the Korean postposition problem (은/는/이/가) 
-    that breaks token-based Jaccard similarity without a morphological analyzer.
+    Check if article is similar using a mix of Substring and Token overlap on TITLE only.
+    Summaries contain too much reporter-specific noise, and difflib is too strict.
     """
-    if not new_article_text: return False
+    if not new_article_title: return False
     
     def clean_text(t):
         if not t: return ""
-        # Remove spaces and special characters to maximize character block matching
-        return re.sub(r'[\s\[\]\(\)\{\}\.\,\'\"\_\-\~\!\@\#\$\%\^\&\*\+\=\|\\\:\/\?\<\>]', '', t).lower()
+        # Remove ALL punctuation and spaces for clean Korean matching
+        return re.sub(r'[\s\[\]\(\)\{\}\.\,\'\"\_\-\~\!\@\#\$\%\^\&\*\+\=\|\\\:\/\?\<\>\…\·]', '', t).lower()
 
-    new_clean = clean_text(new_article_text)
-    if len(new_clean) < 10: return False
+    new_clean = clean_text(new_article_title)
+    if len(new_clean) < 5: return False
     
-    # 500 articles is fast enough for SequenceMatcher (O(N*M))
     recent_articles = existing_articles[-500:]
     
     for art in recent_articles:
-        exist_text = str(art.get('title', '')) + " " + str(art.get('summary', ''))
-        exist_clean = clean_text(exist_text)
+        exist_clean = clean_text(str(art.get('title', '')))
+        if len(exist_clean) < 5: continue
         
-        if len(exist_clean) < 10: continue
+        # 1. Substring match (One is entirely inside the other)
+        if new_clean in exist_clean or exist_clean in new_clean:
+            if min(len(new_clean), len(exist_clean)) >= 8:
+                return True
+                
+        # 2. Bigram Overlap (Handles wording variations)
+        def get_bigrams(text):
+            return set(text[i:i+2] for i in range(len(text)-1))
+            
+        b1 = get_bigrams(new_clean)
+        b2 = get_bigrams(exist_clean)
         
-        # Use Overlap Coefficient instead of raw ratio to handle vastly different summary lengths
-        # (e.g. one article has 300 chars summary, another has 70 chars, but core text is identical)
-        matcher = difflib.SequenceMatcher(None, new_clean, exist_clean)
-        match_len = sum(triple.size for triple in matcher.get_matching_blocks())
-        overlap_ratio = match_len / min(len(new_clean), len(exist_clean))
-        
-        if overlap_ratio >= threshold:
-            return True
+        if b1 and b2:
+            intersection = len(b1 & b2)
+            # Use overlap coefficient against the smaller title
+            overlap_ratio = intersection / min(len(b1), len(b2))
+            
+            if overlap_ratio >= threshold:
+                return True
             
     return False
 
@@ -786,9 +793,8 @@ def main():
                     if relevance < 0.3:  # Filter low relevance
                         continue
                 
-                # Pass title+summary for symmetric comparison (title-only misses overlap in body)
-                art_text = art['title'] + " " + art.get('summary', '')
-                if is_similar_to_seen(art_text, all_articles):
+                # Deduplicate based on TITLE similarity (summaries add too much noise for different outlets)
+                if is_similar_to_seen(art['title'], all_articles):
                     continue
                 
                 # KEYWORD RELEVANCE CHECK (from V1 - critical for filtering!)

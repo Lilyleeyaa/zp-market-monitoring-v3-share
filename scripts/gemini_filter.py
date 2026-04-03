@@ -103,6 +103,9 @@ def gemini_batch_deduplicate_and_score(articles_df):
     if articles_df.empty:
         return articles_df
 
+    # Sort by title to ensure similar articles fall into the same batch (crucial for Gemini deduplication)
+    articles_df = articles_df.sort_values(by='title').copy()
+
     # Prepare article list for Gemini
     all_articles_list = []
     for idx, row in articles_df.iterrows():
