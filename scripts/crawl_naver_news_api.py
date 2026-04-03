@@ -206,8 +206,9 @@ def is_noise_article(text):
 
 def deduplicate_articles(articles, threshold=0.75):
     """
-    Remove articles with similar title + description using SequenceMatcher
-    Threshold set to 0.75 to balance deduplication and content variety.
+    Remove articles with similar content.
+    Uses Semantic Similarity (SentenceTransformers) if available, 
+    otherwise falls back to SequenceMatcher.
     """
     if not articles:
         return []
@@ -218,6 +219,44 @@ def deduplicate_articles(articles, threshold=0.75):
     # Sort by length (descending) to prefer longer/richer content
     articles.sort(key=lambda x: len(x.get('summary', '')) if x.get('summary') else 0, reverse=True)
     
+    if HAS_NLP:
+        try:
+            print("[Deduplication] Using Semantic Similarity (SentenceTransformers)...")
+            from nlp_utils import get_sentence_transformer
+            import numpy as np
+            
+            # Use threshold 0.85 for semantic similarity (stricter than difflib to prevent false positives)
+            semantic_threshold = 0.82 
+            model = get_sentence_transformer()
+            
+            # Pre-compute embeddings for all articles for speed
+            texts = [str(a.get('title', '')) + " " + str(a.get('summary', '')) for a in articles]
+            embeddings = model.encode(texts, show_progress_bar=False)
+            
+            unique_indices = []
+            for i in range(len(articles)):
+                is_duplicate = False
+                for j in unique_indices:
+                    # Calculate cosine similarity
+                    emb1 = embeddings[i]
+                    emb2 = embeddings[j]
+                    norm = (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+                    if norm > 0:
+                        sim = np.dot(emb1, emb2) / norm
+                        if sim >= semantic_threshold:
+                            is_duplicate = True
+                            break
+                
+                if not is_duplicate:
+                    unique_indices.append(i)
+                    unique_articles.append(articles[i])
+                    
+            print(f"[Deduplication] Reduced from {len(articles)} to {len(unique_articles)} articles.")
+            return unique_articles
+        except Exception as e:
+            print(f"[WARNING] Semantic similarity failed: {e}. Falling back to difflib...")
+    
+    # Fallback to difflib SequenceMatcher
     def clean_text(t):
         if not t: return ""
         return re.sub(r'[\s\[\]\(\)\{\}\.\,\'\"\_\-\~\!\@\#\$\%\^\&\*\+\=\|\\\:\/\?\<\>]', '', t).lower()

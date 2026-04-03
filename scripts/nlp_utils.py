@@ -25,7 +25,7 @@ def get_sentence_transformer():
     """Lazy load sentence transformer model"""
     global _st_model
     if _st_model is None:
-        _st_model = SentenceTransformer('all-MiniLM-L6-v2')
+        _st_model = SentenceTransformer('jhgan/ko-sroberta-multitask')
     return _st_model
 
 

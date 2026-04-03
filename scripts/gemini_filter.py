@@ -67,10 +67,10 @@ def call_gemini_api(prompt, max_retries=3):
                     }],
                     "generationConfig": {
                         "temperature": 0.2,
-                        "maxOutputTokens": 2048
+                        "maxOutputTokens": 8192
                     }
                 },
-                timeout=30
+                timeout=60
             )
             
             if response.status_code == 200:
@@ -103,8 +103,12 @@ def gemini_batch_deduplicate_and_score(articles_df):
     if articles_df.empty:
         return articles_df
 
-    # Sort by title to ensure similar articles fall into the same batch (crucial for Gemini deduplication)
-    articles_df = articles_df.sort_values(by='title').copy()
+    # Sort by category and search_keyword to group similar context before title sort.
+    # This prevents identical events with different starting letters from escaping the same batch.
+    if 'category' in articles_df.columns and 'search_keyword' in articles_df.columns:
+        articles_df = articles_df.sort_values(by=['category', 'search_keyword', 'title']).copy()
+    else:
+        articles_df = articles_df.sort_values(by='title').copy()
 
     # Prepare article list for Gemini
     all_articles_list = []
@@ -116,8 +120,8 @@ def gemini_batch_deduplicate_and_score(articles_df):
             "category": row.get('category', '')
         })
     
-    # Process in batches of 5
-    BATCH_SIZE = 5
+    # Process in batches of 20 (Gemini 2.0 Flash easily handles 20 items per prompt)
+    BATCH_SIZE = 20
     total_articles = len(all_articles_list)
     all_gemini_results = []
     
