@@ -91,10 +91,8 @@ def rank_articles():
         # Step 4: Load model & scaler
         print("\n[Step 4/6] Loading model & scaler...")
         try:
-            print("[INFO] AI Model temporarily disabled to bypass local environment crashes.")
-            use_model = False # Force fallback (Strategic Only) to prevent lib_lightgbm segfaults
-            if not HAS_LGBM or not use_model:
-                 raise ImportError("LightGBM module not loaded or disabled")
+            if not HAS_LGBM:
+                 raise ImportError("LightGBM module not loaded")
             
             model = lgb.Booster(model_file=MODEL_PATH)
             # Use joblib instead of pickle for better numpy compatibility
