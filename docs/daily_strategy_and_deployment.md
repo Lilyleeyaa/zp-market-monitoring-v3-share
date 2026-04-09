@@ -162,12 +162,9 @@ git push -u origin main
 5. **Secrets 설정** (Advanced settings):
    ```toml
    # .streamlit/secrets.toml 내용 복사
-   GENAI_API_KEY = "AIzaSy..."
-   
-   # auth/config.yaml 내용 복사
-   [auth]
-   common_password_hash = "5e88489..."
-   internal_domains = ["@lgchem.com", "@lgls.com"]
+   # .streamlit/secrets.toml 전체 내용을 복사 붙여넣기
+   # (API Key, 비밀번호 해시, 이메일 리스트 등 포함)
+   # 실제 값은 secrets.toml 파일 참조
    ```
 
 6. **Deploy** 클릭

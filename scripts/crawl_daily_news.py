@@ -204,7 +204,8 @@ def main():
         print(f"\n[SAVED] Daily output file: {filepath}")
         print(f"\nTop 10 articles:")
         for idx, row in df.head(10).iterrows():
-            print(f"  - {row['title'][:70]}")
+            safe_title = str(row['title'])[:70].encode('cp949', 'ignore').decode('cp949')
+            print(f"  - {safe_title}")
         
         print(f"\n✅ Daily crawl completed! Ready for agency comparison.")
         

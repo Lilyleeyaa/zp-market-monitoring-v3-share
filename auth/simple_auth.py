@@ -1,29 +1,21 @@
 """
-간소화된 인증 시스템 - 내부/외부 완전 분리
+통합 인증 시스템 - st.secrets 전용 (config.yaml 제거)
+비밀번호로 Internal/External 모드 자동 전환
 """
 import streamlit as st
-import yaml
 import hashlib
-import os
+
 
 def load_auth_config():
-    """인증 설정 로드 (Secrets 우선, 파일 후순위)"""
-    # 1. Try Streamlit Secrets
-    if "auth" in st.secrets:
-        return st.secrets["auth"]
-        
-    # 2. Try local config.yaml
-    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    if os.path.exists(config_path):
-        with open(config_path, encoding='utf-8') as f:
-            return yaml.safe_load(f)
-            
-    # 3. Fail gracefully
-    st.error("Auth configuration not found. Please set secrets or add auth/config.yaml.")
-    st.stop()
+    """st.secrets에서 인증 설정 로드 (유일한 소스)"""
+    if "auth" not in st.secrets:
+        st.error("⚠️ Authentication secrets not configured. Please set secrets in Streamlit Cloud or .streamlit/secrets.toml")
+        st.stop()
+    return st.secrets["auth"]
+
 
 def _login_style():
-    """공통 로그인 페이지 스타일"""
+    """공통 로그인 페이지 스타일 (티파니 블루)"""
     st.markdown("""
     <style>
         .stTextInput input {
@@ -50,117 +42,111 @@ def _login_style():
     </style>
     """, unsafe_allow_html=True)
 
+
 def hash_password(password):
     """비밀번호 해싱"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-def _load_external_users(config):
-    """외부 사용자 목록 로드"""
-    external_users = []
-    
-    # 1. Config/Secrets
-    if 'external_users' in config:
-        external_users.extend(config['external_users'])
 
-    # 2. File
+def _load_external_users():
+    """외부 사용자 목록 로드 (st.secrets 전용)"""
     try:
-        ext_path = os.path.join(os.path.dirname(__file__), 'external_users.txt')
-        if os.path.exists(ext_path):
-            with open(ext_path, 'r', encoding='utf-8') as f:
-                file_users = [line.strip() for line in f if line.strip()]
-                external_users.extend(file_users)
-    except:
-        pass
-    
-    return list(set(external_users))
+        # TOML: [auth] 섹션 아래에 있으면 auth.EXTERNAL_EMAILS로 파싱됨
+        if "EXTERNAL_EMAILS" in st.secrets:
+            return list(st.secrets["EXTERNAL_EMAILS"])
+        elif "auth" in st.secrets and "EXTERNAL_EMAILS" in st.secrets["auth"]:
+            return list(st.secrets["auth"]["EXTERNAL_EMAILS"])
+        return []
+    except Exception:
+        return []
 
 
-def authenticate_internal():
+def authenticate_unified():
     """
-    내부 전용 인증
-    - @zuelligpharma.com 이메일 + 내부 비밀번호
-    Returns: email or None
+    통합 인증 - 이메일 + 비밀번호
+    비밀번호에 따라 Internal/External 모드 자동 결정
+
+    Returns: (email, access_level) or stops app
     """
     config = load_auth_config()
-    
-    if 'authenticated' in st.session_state and st.session_state['authenticated']:
-        return st.session_state['email']
-    
+
+    # 이미 로그인된 경우
+    if st.session_state.get('authenticated'):
+        return st.session_state['email'], st.session_state['access_level']
+
     _login_style()
-    st.title("🔐 Internal Login")
-    
-    with st.form("login_form"):
-        email = st.text_input("Email", placeholder="your.name@zuelligpharma.com").strip()
+    st.title("🔐 Healthcare Market Monitor")
+    st.caption("Login with your email and password")
+
+    with st.form("unified_login_form"):
+        email = st.text_input("Email", placeholder="your.name@company.com").strip()
         password = st.text_input("Password", type="password").strip()
         submit = st.form_submit_button("Login")
-        
+
         if submit:
-            # 내부 도메인 확인
-            is_internal = any(email.endswith(domain) for domain in config.get('internal_domains', []))
-            
-            if not is_internal:
-                st.error("❌ Internal users only. Please use your @zuelligpharma.com email.")
+            if not email or not password:
+                st.error("❌ Please enter both email and password.")
                 st.stop()
-            
-            # 비밀번호 확인
-            if hash_password(password) != config['common_password_hash']:
+
+            pw_hash = hash_password(password)
+            internal_hash = config.get("internal_password_hash", "")
+            external_hash = config.get("external_password_hash", "")
+            internal_domains = config.get("internal_domains", [])
+
+            # Case 1: Internal password
+            if pw_hash == internal_hash:
+                is_internal = any(email.lower().endswith(d) for d in internal_domains)
+                if not is_internal:
+                    st.error(f"❌ Internal access requires a company email (@{internal_domains[0]}).")
+                    st.stop()
+
+                st.session_state['authenticated'] = True
+                st.session_state['email'] = email
+                st.session_state['access_level'] = 'internal'
+                st.success("✅ Internal login successful!")
+                st.rerun()
+
+            # Case 2: External password
+            elif pw_hash == external_hash:
+                external_users = [e.lower() for e in _load_external_users()]
+                if email.lower() not in external_users:
+                    st.error(f"❌ Access denied. Your email is not registered.")
+                    st.stop()
+
+                st.session_state['authenticated'] = True
+                st.session_state['email'] = email
+                st.session_state['access_level'] = 'external'
+                st.success("✅ Login successful!")
+                st.rerun()
+
+            # Case 3: Wrong password
+            else:
                 st.error("❌ Incorrect password.")
                 st.stop()
-            
-            # 로그인 성공
-            st.session_state['authenticated'] = True
-            st.session_state['email'] = email
-            st.session_state['access_level'] = 'internal'
-            st.success("✅ Login successful!")
-            st.rerun()
-    
+
     st.stop()
+
+
+# ===== Legacy wrappers (기존 코드 호환용) =====
+def authenticate_internal():
+    """Legacy: internal_weekly.py 호환"""
+    email, level = authenticate_unified()
+    if level != 'internal':
+        st.error("❌ Internal access only.")
+        st.stop()
+    return email
 
 
 def authenticate_external():
-    """
-    외부 전용 인증
-    - external_users.txt에 등록된 이메일 + 외부 비밀번호 (MNCbd!)
-    Returns: email or None
-    """
-    config = load_auth_config()
-    
-    if 'authenticated' in st.session_state and st.session_state['authenticated']:
-        return st.session_state['email']
-    
-    _login_style()
-    st.title("🔐 Login")
-    
-    with st.form("login_form"):
-        email = st.text_input("Email", placeholder="your.email@company.com").strip()
-        password = st.text_input("Password", type="password").strip()
-        submit = st.form_submit_button("Login")
-        
-        if submit:
-            external_users = [e.lower() for e in _load_external_users(config)]
-            
-            if email.lower() not in external_users:
-                st.error(f"❌ Access denied. (Debug: '{email.lower()}' not found in {len(external_users)} loaded users)")
-                st.stop()
-            
-            if password != "MNCbd!":
-                st.error("❌ Incorrect password.")
-                st.stop()
-            
-            # 로그인 성공
-            st.session_state['authenticated'] = True
-            st.session_state['email'] = email
-            st.session_state['access_level'] = 'external'
-            st.success("✅ Login successful!")
-            st.rerun()
-    
-    st.stop()
+    """Legacy: external_weekly.py 호환"""
+    email, level = authenticate_unified()
+    return email
 
 
-# 하위 호환용 (기존 코드에서 authenticate() 호출 시)
 def authenticate(mode='weekly'):
     """Legacy wrapper"""
     return authenticate_internal()
+
 
 def get_current_user():
     """현재 로그인한 사용자 정보 반환"""

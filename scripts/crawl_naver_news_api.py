@@ -1060,7 +1060,8 @@ def main():
         print(f"\n[SAVED] Output file: {filepath}")
         print(f"\nTop 10 articles by score:")
         for idx, row in df.head(10).iterrows():
-            print(f"  [{row['score_ag']:.0f}] {row['title'][:70]}")
+            safe_title = str(row['title'])[:70].encode('cp949', 'ignore').decode('cp949')
+            print(f"  [{row['score_ag']:.0f}] {safe_title}")
         
         print(f"\nScore distribution:")
         print(df['score_ag'].describe())

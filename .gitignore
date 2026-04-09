@@ -21,12 +21,19 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Model files (optional - 용량이 크면 추가)
+# Model files (optional)
 # model/*.pkl
 # model/*.txt
 
 # Logs
 *.log
 
-# Environment variables
+# ============================================
+# SECURITY: Sensitive files (DO NOT COMMIT)
+# ============================================
 .env
+.streamlit/secrets.toml
+auth/config.yaml
+auth/external_users.txt
+check_mebaro*.txt
+scripts/debug_*.py
