@@ -162,7 +162,8 @@ EXCLUDED_KEYWORDS = [
     "로봇", "재활로봇", "보행로봇", "웨어러블", # Device/Tech (unless drug related, usually noise)
     "CRO", "CDMO", "위탁생산", # Manufacturing/Service industry (often B2B ads)
     "임상시험", "임상참여자", "대상자 모집", # Generic Clinical Trial recruitment/info
-    "동물", "사료" # User Request: Simplified exclusion
+    "동물", "사료", # User Request: Simplified exclusion
+    "동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "낙태", "살인", "의료진", "선고" # Specific Exclusions added from Rank
 ]
 
 GENERIC_KEYWORDS = ["파트너십", "계약", "M&A", "인수", "합병", "투자", "제휴"]

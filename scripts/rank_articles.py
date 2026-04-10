@@ -296,15 +296,7 @@ def rank_articles():
                 if any(k in text for k in corporate_keywords_minor):
                     strategic_score -= 5.0  # Milder penalty for very generic IR news
             
-            # 7. VIP Client boost (User cited specific MNCs and major domestics)
-            vip_keywords = ["베링거인겔하임", "마운자로", "위고비", "노보노디스크", "릴리", "바이오젠", "화이자", "MSD", "바로팜"]
-            if any(k in text for k in vip_keywords):
-                strategic_score += 4.0
 
-            # 8. Specific Exclusion (User Request)
-            exclusion_keywords = ["동아쏘시오", "donga socio", "이뮨온시아", "immuneoncia", "에스바이오메딕스", "s-biomedics", "원바이오젠", "동물", "사료", "낙태", "살인", "의료진", "구속", "선고"]
-            if any(k in text for k in exclusion_keywords):
-                strategic_score = -100.0 # Extreme penalty to ensure it's dropped from Top 20
                 
             # 9. Conditional Exclusion: Distribution + (Hospital & Bidding)
             if row.get('category') == 'Distribution':
