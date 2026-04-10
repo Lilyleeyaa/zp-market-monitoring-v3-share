@@ -402,6 +402,24 @@ def load_weekly_data(mode='internal'):
                     df['keywords'].fillna('').str.contains(ext_pattern, case=False, na=False)
                 )
                 df = df[~ext_mask]
+                
+            # Zuellig Negative News Exclusion for External (MNC BD)
+            if not df.empty:
+                negative_zuellig_keywords = [
+                    "계약 종료", "계약 만료", "계약 해지", "철수", "결별", "타사 이전", 
+                    "타사로 이전", "판권 반환", "판권 회수", "판권 종료", "유통 변경", 
+                    "유통사 변경", "이전", "타사", "공급 중단", "계약종료", "계약만료"
+                ]
+                neg_pattern = '|'.join(negative_zuellig_keywords)
+                zuellig_mentioned = (
+                    df['title'].str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
+                    df['summary'].fillna('').str.contains('쥴릭|지피테라퓨틱스', case=False, na=False)
+                )
+                is_negative = (
+                    df['title'].str.contains(neg_pattern, case=False, na=False) |
+                    df['summary'].fillna('').str.contains(neg_pattern, case=False, na=False)
+                )
+                df = df[~(zuellig_mentioned & is_negative)]
 
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
