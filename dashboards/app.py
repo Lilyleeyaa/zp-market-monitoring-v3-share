@@ -408,16 +408,24 @@ def load_weekly_data(mode='internal'):
                 negative_zuellig_keywords = [
                     "계약 종료", "계약 만료", "계약 해지", "철수", "결별", "타사 이전", 
                     "타사로 이전", "판권 반환", "판권 회수", "판권 종료", "유통 변경", 
-                    "유통사 변경", "이전", "타사", "공급 중단", "계약종료", "계약만료"
+                    "유통사 변경", "이전", "타사", "공급 중단", "계약종료", "계약만료",
+                    "유통되던", "품에 안기", "재편", "새 파트너", "새로운 파트너", 
+                    "유통 구조", "유통망 변경"
                 ]
                 neg_pattern = '|'.join(negative_zuellig_keywords)
+                
+                # Check title, summary, and content (if available)
+                content_col = df['content'].fillna('') if 'content' in df.columns else pd.Series([''] * len(df), index=df.index)
+                
                 zuellig_mentioned = (
                     df['title'].str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
-                    df['summary'].fillna('').str.contains('쥴릭|지피테라퓨틱스', case=False, na=False)
+                    df['summary'].fillna('').str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
+                    content_col.str.contains('쥴릭|지피테라퓨틱스', case=False, na=False)
                 )
                 is_negative = (
                     df['title'].str.contains(neg_pattern, case=False, na=False) |
-                    df['summary'].fillna('').str.contains(neg_pattern, case=False, na=False)
+                    df['summary'].fillna('').str.contains(neg_pattern, case=False, na=False) |
+                    content_col.str.contains(neg_pattern, case=False, na=False)
                 )
                 df = df[~(zuellig_mentioned & is_negative)]
 
