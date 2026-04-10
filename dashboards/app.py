@@ -417,17 +417,30 @@ def load_weekly_data(mode='internal'):
                 # Check title, summary, and content (if available)
                 content_col = df['content'].fillna('') if 'content' in df.columns else pd.Series([''] * len(df), index=df.index)
                 
+                # 1. Zuellig Mentioned (including AI tags & category)
                 zuellig_mentioned = (
+                    df['category'].str.contains('Zuellig', case=False, na=False) |
+                    df['keywords'].fillna('').str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
                     df['title'].str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
                     df['summary'].fillna('').str.contains('쥴릭|지피테라퓨틱스', case=False, na=False) |
                     content_col.str.contains('쥴릭|지피테라퓨틱스', case=False, na=False)
                 )
-                is_negative = (
+                
+                # 2. Negative Context (Explicit negative words)
+                is_negative_explicit = (
                     df['title'].str.contains(neg_pattern, case=False, na=False) |
                     df['summary'].fillna('').str.contains(neg_pattern, case=False, na=False) |
                     content_col.str.contains(neg_pattern, case=False, na=False)
                 )
-                df = df[~(zuellig_mentioned & is_negative)]
+                
+                # 3. Competitor Contract Detection (Title says "Exclusive Supply/Distribution Contract" but Zuellig is not the subject)
+                is_competitor_contract = (
+                    df['title'].str.contains('독점 유통|유통 계약|공급 계약|공급계약|유통계약|독점 공급|위탁 유통|손을 잡|맞손|품는다|품어', case=False, na=False) &
+                    ~df['title'].str.contains('쥴릭|지피테라퓨틱스|지피', case=False, na=False)
+                )
+                
+                # Drop if Zuellig is mentioned AND (it's explicitly negative OR someone else won a distribution contract)
+                df = df[~(zuellig_mentioned & (is_negative_explicit | is_competitor_contract))]
 
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
