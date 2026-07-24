@@ -105,8 +105,9 @@ def extract_features(df):
     
     # Text embeddings
     print("  - Encoding text features...")
+    train_texts = (df['title'].fillna('').astype(str) + " " + df['summary'].fillna('').astype(str)).tolist()
     text_embeddings = model_st.encode(
-        (df['title'] + " " + df['summary'].fillna('')).tolist(),
+        train_texts,
         show_progress_bar=True
     )
     

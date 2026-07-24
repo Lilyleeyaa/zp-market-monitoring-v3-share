@@ -203,22 +203,7 @@ def rank_articles():
                                   on='url', how='left')
                     print(f"  - Merged {len(labels_df)} labels")
         
-        # Normalize scores
         print("  - Calculating final scores...")
-        
-        if use_model:
-            # LGBM weight increased to 0.6 - feedback data is being reflected well
-            LGBM_WEIGHT = 0.6      # Increased from 0.3 (model now learning from thumbs-up)
-            SCOREAG_WEIGHT = 0.4    # Decreased from 0.7
-            
-            # Normalize each score to 0-1 range separately
-            df['score_ag_norm'] = df['score_ag'].clip(0, 10) / 10  # Assume max 10
-            df['lgbm_score_norm'] = df['lgbm_score'].clip(0, 1)
-            
-            df['final_score'] = LGBM_WEIGHT * df['lgbm_score_norm'] + SCOREAG_WEIGHT * df['score_ag_norm']
-        else:
-            # Use score_ag only
-            df['final_score'] = df['score_ag'].clip(0, 10) / 10
 
 
         # --- Strategic Scoring (Rule-Based Enhancement) ---
@@ -323,16 +308,19 @@ def rank_articles():
         # LGBM_Component needs to be on 0-10 scale.
         
         if use_model:
-            # lgbm_score is 0-1. Scaling to 10.
-            # LGBM share increased to 70% within component (was 50%)
-            df['lgbm_component'] = (df['lgbm_score'] * 10 * 0.7) + (df['score_ag'] * 0.3)
+            # lgbm_score is 0-1, scaled to 0-10
+            # score_ag is NOT added here since it's already a training feature inside the LGBM model
+            df['lgbm_component'] = df['lgbm_score'] * 10
         else:
-            df['lgbm_component'] = df['score_ag'] # Fallback
-            
-        # Apply Formula
-        # Final_Score = (LGBM_Component * 0.6) + (Strategic_Score * 0.4)
-        # 60/40 weight as requested by the user
-        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score'] * 0.4)
+            df['lgbm_component'] = df['score_ag']  # Fallback: use score_ag directly
+
+        # Normalize strategic_score to 0-10 scale before combining
+        # Max possible: base(10) + coprom(6) + market(2) + obesity(4) = 22
+        MAX_STRATEGIC = 22.0
+        df['strategic_score_norm'] = (df['strategic_score'].clip(0, MAX_STRATEGIC) / MAX_STRATEGIC) * 10
+
+        # Final Score = (LGBM 0~10 * 0.6) + (Strategic 0~10 * 0.4) → 0~10 range
+        df['final_score'] = (df['lgbm_component'] * 0.6) + (df['strategic_score_norm'] * 0.4)
         
         # Category-balanced selection for top results
         print("  - Applying category balancing...")
