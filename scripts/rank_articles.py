@@ -113,8 +113,9 @@ def rank_articles():
             print("  - Encoding text features (jhgan/ko-sroberta-multitask)...")
             # Using Korean-Specific Model
             model_st = SentenceTransformer('jhgan/ko-sroberta-multitask')
+            texts = (df['title'].fillna('').astype(str) + " " + df['summary'].fillna('').astype(str)).tolist()
             text_features = model_st.encode(
-                (df['title'] + " " + df['summary'].fillna('')).tolist(),
+                texts,
                 show_progress_bar=False
             )
             
