@@ -149,10 +149,7 @@ def rank_articles():
             
             # Removed days_old to reduce temporal bias
             
-            meta_features = pd.concat([
-                df[['score_ag']],
-                category_dummies
-            ], axis=1).fillna(0).values
+            meta_features = category_dummies.fillna(0).values
             
             X = np.hstack([text_features, meta_features])
             X_scaled = scaler.transform(X)

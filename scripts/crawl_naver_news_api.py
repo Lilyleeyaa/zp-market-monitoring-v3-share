@@ -84,7 +84,7 @@ APPROVAL_KEYWORDS = ["허가", "신제품", "출시", "신약", "적응증", "�
 REIMBURSEMENT_KEYWORDS = ["보험등재", "급여", "약가"]
 
 # 5. Zuellig
-ZUELLIG_KEYWORDS = ["쥴릭", "\"지피테라퓨틱스\"", "라미실", "액티넘", "베타딘", "사이클로제스트", "리브타요"]
+ZUELLIG_KEYWORDS = ["쥴릭", "\"지피테라퓨틱스\"", "라미실", "액티넘", "베타딘", "사이클로제스트"]
 
 # 6. Client (renamed from Partner)
 CLIENT_KEYWORDS = [    "한독", "MSD", "오가논", "화이자", "사노피", "암젠", "GSK", "로슈", "릴리", "노바티스", "노보노디스크",

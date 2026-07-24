@@ -139,10 +139,7 @@ def extract_features(df):
     
     # Removed days_old - it was causing temporal bias
     
-    meta_features = pd.concat([
-        df[['score_ag']],
-        category_dummies
-    ], axis=1).fillna(0).values
+    meta_features = category_dummies.fillna(0).values
     
     # Combine
     X = np.hstack([text_features, meta_features])
@@ -157,9 +154,8 @@ def extract_features(df):
     else:
         raise KeyError("No reward column found in dataset!")
         
-    # Create sample weights based on score_ag (Higher score = More important to learn)
-    weights = df['score_ag'].values
-    weights = np.clip(weights, 1, 10) # Clip 1~10
+    # Create sample weights based on user reward feedback (Positive reward = higher weight)
+    weights = np.where(y == 1, 3.0, 1.0)
     
     print(f"[OK] Feature extraction complete: {X.shape}")
     print(f"[OK] Text features: 128 dims (PCA) + Metadata: {meta_features.shape[1]} features")
@@ -249,9 +245,9 @@ def train_model():
     print("\n>>> Top 10 Feature Importances:")
     importance = model.feature_importance(importance_type='gain')
     
-    # Reconstruct feature names (removed days_old)
+    # Reconstruct feature names (removed days_old, score_ag)
     category_cols = pd.get_dummies(df['category'], prefix='cat').columns.tolist()
-    feature_names = [f"pca_{i}" for i in range(128)] + ['score_ag'] + category_cols
+    feature_names = [f"pca_{i}" for i in range(128)] + category_cols
     
     importance_df = pd.DataFrame({
         'feature': feature_names,
