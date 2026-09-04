@@ -75,8 +75,7 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 # Competitor & Noise Filter Lists
 COMPETITOR_KEYWORDS = [
-    "지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL", "위고비", "마운자로", "백제약품", "이지메디컴",
-    "대웅", "종근당", "한미약품", "유한양행", "녹십자", "일동제약", "보령", "동아ST", "JW중외", "광동제약"
+    "지오영", "블루엠텍", "바로팜", "DKSH", "쉥커", "용마", "DHL"
 ]
 
 EXCLUDED_KEYWORDS = [
@@ -142,6 +141,14 @@ def translate_article_batch(title, summary, keywords):
         pass
     return t_title, t_summary, t_keywords
 
+# ====================
+# External 전용 필터 정예화 (진짜 유통/물류 경쟁사만 차단)
+# ====================
+# 파트너 제약사(유한, 한미, 종근당 등)와 핵심 제품(위고비 등)은 살리고 순수 유통 경쟁사만 지정
+COMPETITOR_KEYWORDS = [
+    "지오영", "백제약품", "DKSH", "블루엠텍", "바로팜", "용마로지스", "용마", "쉥커", "DHL", "이지메디컴"
+]
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
     try:
@@ -158,17 +165,17 @@ def load_weekly_data():
         if 'category' not in df.columns: df['category'] = 'General'
         if 'keywords' not in df.columns: df['keywords'] = ''
         
-        # 1. Noise Filter
+        # 1. 노이즈 필터링
         if not df.empty:
             df['is_noise'] = df.apply(is_noise_article, axis=1)
             df = df[~df['is_noise']]
         
-        # 2. Competitor Hard Filter
+        # 2. 경쟁사 필터링 (제목에 경쟁사가 명시된 기사 및 키워드 매칭만 정확히 차단)
         if not df.empty and COMPETITOR_KEYWORDS:
             comp_pattern = '|'.join(map(re.escape, COMPETITOR_KEYWORDS))
+            # 제목이나 키워드에 경쟁사가 직접 걸린 경우만 확실히 제거 (본문 단순 언급으로 인한 멀쩡한 기사 삭제 방지)
             comp_mask = (
                 df['title'].astype(str).str.contains(comp_pattern, case=False, na=False) |
-                df['summary'].fillna('').astype(str).str.contains(comp_pattern, case=False, na=False) |
                 df['keywords'].fillna('').astype(str).str.contains(comp_pattern, case=False, na=False)
             )
             df = df[~comp_mask]
