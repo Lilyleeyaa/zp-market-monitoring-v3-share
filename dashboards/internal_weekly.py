@@ -1,8 +1,8 @@
 """
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
-- Credential 제거
-- 최상단 Today's Strategic Pick (썸네일 대표 기사) 추가
-- 하위 카테고리는 기존 회사 전용 티파니 블루 테마 & 카드 리스트 뷰 100% 유지
+- Credential 완전 제거
+- 최상단 금주의 AI 추천 기사 & BD 관점 추천 코멘트 (Gemini 기반)
+- 썸네일 제외 / 회사 고유 티파니 블루 테마 & 리스트 카드 뷰 100% 유지
 """
 
 import streamlit as st
@@ -141,6 +141,40 @@ Output only the translated English text, no explanations."""
     except Exception:
         return text
 
+# ====================
+# Gemini BD Insight Generation (Cached)
+# ====================
+@st.cache_data(show_spinner=False, ttl=86400)
+def generate_bd_comment(title, summary, keywords):
+    """BD(Business Development & Strategic Partnership) 관점 추천 코멘트 생성"""
+    if not title or not GENAI_API_KEY:
+        return "급여 등재 및 시장 진입 동향에 따른 유통·코프로모션 파트너십 기회 분석과 경쟁 구도 모니터링이 필요한 핵심 이슈입니다."
+    
+    prompt = f"""
+    당신은 헬스케어 유통 및 커머셜 솔루션 기업(Zuellig Pharma)의 사업개발(BD & Strategic Partnership) 분석가입니다.
+    아래 주요 기사를 검토하고, 'BD 관점에서 이 기사를 주목해야 하는 이유(파트너십/코프로모션 기회, 유통망 재편, 급여/약가 영향, 경쟁사 동향 등 비즈니스 임팩트)'를 2~3문장의 명확하고 전문적인 어조로 작성해 주세요.
+
+    [기사 정보]
+    - 제목: {title}
+    - 요약: {summary}
+    - 키워드: {keywords}
+
+    [작성 규칙]
+    1. 인사말이나 마크다운 서식 없이 바로 2~3문장의 핵심 코멘트만 반환하세요.
+    2. 전문적인 제약/BD 용어를 활용하여 실무적인 시사점을 명확히 짚어주세요.
+    """
+    try:
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        headers = {'Content-Type': 'application/json'}
+        resp = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            if 'candidates' in res_json and res_json['candidates']:
+                return res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+    except Exception:
+        pass
+    return "신약 출시 및 시장 진입에 따른 유통망 확보와 코프로모션 파트너십 기회 선점 관점에서 모니터링이 필요한 주요 이슈입니다."
+
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 EXCLUDED_KEYWORDS = [
     "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
@@ -266,7 +300,6 @@ def load_weekly_data():
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
         if 'category' not in df.columns: df['category'] = 'General'
         if 'keywords' not in df.columns: df['keywords'] = ''
-        if 'image_url' not in df.columns: df['image_url'] = ''
             
         if 'is_top20' in df.columns and df['is_top20'].any():
             top20_df = df[df['is_top20'] == True]
@@ -486,64 +519,80 @@ st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
 # ==========================================
-# 🌟 [추가된 부분] 최상단 Today's Strategic Focus (썸네일 대표 기사 1개)
+# 🌟 최상단 금주의 AI 추천 기사 (BD 관점 추천 코멘트 카드)
 # ==========================================
 if not filtered_df.empty:
     hero_row = filtered_df.iloc[0]
     h_title = hero_row['title']
     h_summary = hero_row.get('summary', '')
-    h_date = hero_row.get('published_date', '')
+    h_date = str(hero_row.get('published_date', ''))
     h_keywords = hero_row.get('keywords', '')
     h_url = hero_row.get('url', '#')
-    h_img = hero_row.get('image_url', '')
-    if not h_img or not str(h_img).startswith('http'):
-        h_img = "https://images.unsplash.com/photo-1586015555751-63c2305d2146?w=600&auto=format&fit=crop&q=60"
-        
+    
+    # Generate BD Strategic Insight
+    bd_comment = generate_bd_comment(h_title, h_summary, h_keywords)
+    
     if use_english:
         h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
+        if bd_comment:
+            bd_comment = translate_text(bd_comment, target='en')
 
     st.markdown("""
     <div style="margin-top: 10px; margin-bottom: 8px;">
-        <span style="font-size: 22px; font-weight: bold; color: #006666;">🔥 Today's Key Strategic Pick</span>
+        <span style="font-size: 22px; font-weight: bold; color: #006666;">🔥 금주의 AI 추천 기사 (Strategic Focus)</span>
     </div>
     """, unsafe_allow_html=True)
     
-    # 썸네일과 원본 스타일 카드가 결합된 대표 기사
-    with st.container():
-        hc1, hc2, hc3 = st.columns([4, 11, 1])
-        with hc1:
-            st.image(h_img, use_container_width=True)
-        with hc2:
-            st.markdown(f'''
-            <div style="
-                background-color: #FFFFFF;
-                border-left: 6px solid #0ABAB5;
-                border-radius: 8px;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-                padding: 16px;
-                height: 100%;
-            ">
-                <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                    <a href="{h_url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{h_title}</a>
-                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {h_date} | {h_keywords}</span>
-                </div>
-                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {h_summary}
-                </div>
+    # Highlight Card (No Thumbnail / Full Width)
+    c_card, c_btn = st.columns([15, 1])
+    with c_card:
+        st.markdown(f'''
+        <div style="
+            background-color: #FFFFFF;
+            border-left: 6px solid #008080;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 102, 102, 0.08);
+            padding: 20px;
+            margin-bottom: 8px;
+        ">
+            <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                <span style="background-color: #E0F2F1; color: #00695C; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; margin-right: 6px;">★ Top Pick</span>
+                <a href="{h_url}" target="_blank" style="font-size: 19px; font-weight: bold; text-decoration: none; color: #008080;">{h_title}</a>
+                <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {h_date} | {h_keywords}</span>
             </div>
-            ''', unsafe_allow_html=True)
-        with hc3:
-            st.button(
-                "👍🏻",
-                key="like_hero_" + str(hash(h_url)),
-                on_click=handle_like,
-                args=(hero_row.to_dict(),),
-                help="Good"
-            )
+            <div style="font-size: 14px; margin-top: 12px; color: #333; line-height: 1.6; background-color: #F8FBFA; padding: 12px; border-radius: 6px; border-left: 3px solid #0ABAB5;">
+                <b style="color: #006666;">💡 BD 관점 추천 코멘트:</b><br>{bd_comment}
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+    with c_btn:
+        st.button(
+            "👍🏻",
+            key="like_hero_" + str(hash(h_url)),
+            on_click=handle_like,
+            args=(hero_row.to_dict(),),
+            help="Good"
+        )
+    
+    # Collapsible Share Box (Admin / Personal Copy Tool)
+    share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Strategic Brief]
+
+🔥 금주의 AI 추천 기사
+"{h_title}"
+
+💡 BD 관점 추천 코멘트:
+{bd_comment}
+
+👉 전체 Top 20 및 카테고리별 동향 바로가기 (로그인 불필요):
+https://healthcare-market-monitoring.streamlit.app"""
+
+    with st.expander("📤 공유용 텍스트"):
+        st.code(share_brief, language="markdown")
+        
     st.divider()
 
 # ==========================================
-# 📂 [기존 원본 그대로 복원] Category별 리스트 카드 뷰
+# 📂 Category별 리스트 카드 뷰 (기존 원본 복원)
 # ==========================================
 category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
 unique_categories = filtered_df['category'].dropna().unique()
@@ -572,7 +621,6 @@ for cat in sorted_categories:
             title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
             keywords = keywords_trans
         
-        # 기존 원본 티파니 블루 리스트 카드 형태 100% 동일
         c_card, c_btn = st.columns([15, 1])
         with c_card:
             st.markdown(f'''
