@@ -1,8 +1,8 @@
 """
-Internal Weekly Dashboard - Healthcare Market Monitoring (V3.1 Visual Edition)
-- Credential removed for frictionless access
-- Hero (Featured) Article & Thumbnail Grid UI
-- Category-specific visual badging & Fallback image support
+Internal Weekly Dashboard - 내부용 (경쟁사 포함)
+- Credential 제거
+- 최상단 Today's Strategic Pick (썸네일 대표 기사) 추가
+- 하위 카테고리는 기존 회사 전용 티파니 블루 테마 & 카드 리스트 뷰 100% 유지
 """
 
 import streamlit as st
@@ -21,18 +21,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Page configuration
 st.set_page_config(
-    page_title="Healthcare Market Monitor",
+    page_title="Health Market Monitor",
     page_icon="🏥",
     layout="wide"
 )
 
-# ====================
-# GitHub Token for Feedback Logging (Non-blocking)
-# ====================
+# Title (V2 Style)
+st.title("🏥 Healthcare Market Monitoring")
+st.markdown("Automated news monitoring & analysis system")
+
+# GitHub Token을 session_state에 캐시
 if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
     _gh_token = None
     _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
-    
     try:
         from auth.simple_auth import load_auth_config
         _config = load_auth_config()
@@ -61,7 +62,7 @@ if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
     st.session_state['gh_repo'] = _gh_repo
 
 # ====================
-# Translation & Glossary
+# Translation Components (V2)
 # ====================
 EXTRA_GLOSSARY = {
     "데일리팜": "Daily Pharm", "약사공론": "Yaksagongron", "메디파나": "Medipana",
@@ -74,6 +75,7 @@ EXTRA_GLOSSARY = {
     "앱글리스": "Ebglyss", "엡글리스": "Ebglyss", "상급종합병원": "Tertiary General Hospital",
     "건기식": "Health Functional Food", "프리필드": "Pre-filled", "니코틴엘": "Nicotinell",
     "파슬로덱스": "Faslodex", "닥터레디": "Dr. Reddy's", "HK이노엔": "HK InnoN", "포시가": "Forxiga",
+    "쥴릭": "Zuellig", "쥴릭파마": "Zuellig Pharma", "쥴릭코리아": "Zuellig Pharma Korea",
 }
 
 KEYWORD_MAPPING = {
@@ -111,11 +113,9 @@ Text to translate:
 "{text}"
 
 Output only the translated English text, no explanations."""
-            
             payload = {"contents": [{"parts": [{"text": prompt}]}]}
             headers = {'Content-Type': 'application/json'}
             response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
-            
             if response.status_code == 200:
                 result = response.json()
                 if 'candidates' in result and result['candidates']:
@@ -135,51 +135,61 @@ Output only the translated English text, no explanations."""
         for kr_term in sorted_terms:
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-        return GoogleTranslator(source='ko', target=target).translate(processed_text)
-    except:
+        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
+        return translated
+    except Exception:
         return text
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def translate_article_batch(title, summary, keywords):
-    if not title and not summary: return title, summary, keywords
-    combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
-    result_text = translate_text(combined_text)
-    t_title, t_summary, t_keywords = title, summary, keywords
-    try:
-        lines = result_text.split('\n')
-        for line in lines:
-            if line.startswith("Title:") or line.startswith("Title :"):
-                t_title = line.split(":", 1)[1].strip()
-            elif line.startswith("Summary:") or line.startswith("Summary :"):
-                t_summary = line.split(":", 1)[1].strip()
-            elif line.startswith("Keywords:") or line.startswith("Keywords :"):
-                t_keywords = line.split(":", 1)[1].strip()
-    except Exception:
-        pass
-    return t_title, t_summary, t_keywords
+INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
+    "주가", "주식", "목표주가", "특징주", "급등", "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강", "채용", "신입사원", "공채", "원서접수", "고양이",
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴", "낙태", "살인", "의료진", "구속", "선고", "알테오젠"
+]
+GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
+PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단", "물류", "유통", "공급"]
 
-# ====================
-# Feedback & Data Handling
-# ====================
+def is_noise_article(row):
+    text = str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text: return True
+    if "제약" in text:
+        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
+            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
+                return True
+    row_kws = str(row.get('keywords', ''))
+    if row_kws:
+        matched_gen = [gk for gk in GENERIC_KEYWORDS if gk in row_kws]
+        if matched_gen and not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
+            return True
+    if str(row.get('category')) == 'Distribution' and '도이치뱅크' in text:
+        return True
+    return False
+
+def has_internal_keyword(row_keywords):
+    if pd.isna(row_keywords) or row_keywords == '': return False
+    return any(k.strip() in INTERNAL_KEYWORDS for k in str(row_keywords).split(','))
+
 def handle_like(row_dict):
     try:
         save_feedback(row_dict, 1)
     except Exception:
         pass
-    st.toast("Saved to Feedback Log!", icon="👍")
+    st.toast("Saved!", icon="👍")
 
 def save_feedback(row, label):
     import base64, csv, io
     try:
         gh_token = st.session_state.get('gh_token', '')
         gh_repo = st.session_state.get('gh_repo') or 'Lilyleeyaa/zp-market-monitoring-v3-share'
-        
         c_url = str(row.get('url', '')).strip()
         c_title = str(row.get('title', '')).replace("\n", " ").strip()
         c_category = str(row.get('category', '')).strip()
         c_keywords = str(row.get('keywords', '')).strip()
         c_score_ag = str(row.get('score_ag', '')).strip()
-        
         kst = pytz.timezone('Asia/Seoul')
         feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
         
@@ -188,7 +198,6 @@ def save_feedback(row, label):
         writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
         new_line = buf.getvalue().rstrip("\r\n")
         
-        # Local append
         local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "labels")
         os.makedirs(local_dir, exist_ok=True)
         local_path = os.path.join(local_dir, "feedback_log.csv")
@@ -198,9 +207,8 @@ def save_feedback(row, label):
         with open(local_path, "a", encoding="utf-8-sig") as f:
             f.write(new_line + "\n")
             
-        if not gh_token:
-            return
-            
+        if not gh_token: return
+        
         api_url = f"https://api.github.com/repos/{gh_repo}/contents/data/labels/feedback_log.csv"
         headers = {"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github.v3+json"}
         resp = requests.get(api_url, headers=headers)
@@ -223,24 +231,24 @@ def save_feedback(row, label):
     except Exception as e:
         print(f"[Feedback Exception] {e}")
 
-INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
-EXCLUDED_KEYWORDS = [
-    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
-    "부동산", "아파트", "전세", "매매", "청약", "건설", "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
-    "주가", "주식", "목표주가", "특징주", "급등", "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
-    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강", "채용", "신입사원", "공채", "원서접수", "고양이",
-    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴", "낙태", "살인", "의료진", "구속", "선고", "알테오젠"
-]
-
-def is_noise_article(row):
-    text = str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
-    for exc in EXCLUDED_KEYWORDS:
-        if exc in text: return True
-    return False
-
-def has_internal_keyword(row_keywords):
-    if pd.isna(row_keywords) or row_keywords == '': return False
-    return any(k.strip() in INTERNAL_KEYWORDS for k in str(row_keywords).split(','))
+@st.cache_data(show_spinner=False, ttl=3600)
+def translate_article_batch(title, summary, keywords):
+    if not title and not summary: return title, summary, keywords
+    combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
+    result_text = translate_text(combined_text)
+    t_title, t_summary, t_keywords = title, summary, keywords
+    try:
+        lines = result_text.split('\n')
+        for line in lines:
+            if line.startswith("Title:") or line.startswith("Title :"):
+                t_title = line.split(":", 1)[1].strip()
+            elif line.startswith("Summary:") or line.startswith("Summary :"):
+                t_summary = line.split(":", 1)[1].strip()
+            elif line.startswith("Keywords:") or line.startswith("Keywords :"):
+                t_keywords = line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return t_title, t_summary, t_keywords
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
@@ -259,7 +267,7 @@ def load_weekly_data():
         if 'category' not in df.columns: df['category'] = 'General'
         if 'keywords' not in df.columns: df['keywords'] = ''
         if 'image_url' not in df.columns: df['image_url'] = ''
-        
+            
         if 'is_top20' in df.columns and df['is_top20'].any():
             top20_df = df[df['is_top20'] == True]
             other_df = df[df['is_top20'] != True]
@@ -275,6 +283,7 @@ def load_weekly_data():
             if not df.empty:
                 df['is_noise'] = df.apply(is_noise_article, axis=1)
                 df = df[~df['is_noise']]
+            
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
         return pd.DataFrame(), None, str(e)
@@ -282,281 +291,314 @@ def load_weekly_data():
 df, filename, file_type = load_weekly_data()
 
 if df.empty:
-    st.warning("⚠️ 수집된 데이터가 없습니다. 크롤러를 실행해 주세요.")
+    st.warning("No data found. Please run the crawler first.")
     st.stop()
 
 # ====================
-# Visual Styling (Modern CSS)
+# Main Layout (기존 원본 Tiffany Blue CSS 그대로 복원)
 # ====================
 st.markdown("""
 <style>
-    .stApp { background-color: #F8FAFB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    /* Global Background & Font */
+    .stApp {
+        background-color: #F0F8F8; /* Very Light Teal/Grey */
+    }
     
-    /* Header Area */
-    .dashboard-header {
-        padding: 10px 0 20px 0;
-        border-bottom: 2px solid #E2E8F0;
-        margin-bottom: 25px;
+    /* Header/Title */
+    h1 {
+        color: #006666 !important; /* Deep Teal */
     }
-    .main-title { font-size: 28px; font-weight: 800; color: #0D5C75; letter-spacing: -0.5px; }
-    .sub-title { font-size: 14px; color: #64748B; margin-top: 4px; }
     
-    /* Hero Featured Card */
-    .hero-container {
-        background: linear-gradient(135deg, #0F766E 0%, #0D5C75 100%);
-        border-radius: 16px;
-        padding: 24px;
-        color: #FFFFFF;
-        box-shadow: 0 10px 25px -5px rgba(13, 92, 117, 0.25);
-        margin-bottom: 30px;
-        transition: transform 0.2s ease;
-    }
-    .hero-badge {
-        background-color: #F59E0B;
-        color: #FFFFFF;
-        font-weight: 700;
-        font-size: 12px;
-        padding: 4px 10px;
-        border-radius: 20px;
-        display: inline-block;
-        margin-bottom: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .hero-title {
-        font-size: 22px;
-        font-weight: 700;
-        color: #FFFFFF !important;
+    .article-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #008080; /* Teal */
         text-decoration: none;
-        line-height: 1.4;
     }
-    .hero-title:hover { text-decoration: underline; }
-    .hero-summary {
+    .article-title:hover {
+        color: #0ABAB5; /* Tiffany Blue on Hover */
+        text-decoration: underline;
+    }
+    
+    .article-meta {
+        font-size: 12px;
+        color: #888;
+    }
+    
+    .category-badge {
+        background-color: #E0F2F1; /* Light Teal background */
+        color: #00695C; /* Dark Teal text */
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 5px;
+    }
+    .article-summary {
         font-size: 14px;
-        color: #E2E8F0;
-        margin-top: 12px;
+        color: #444;
+        margin-top: 8px;
         line-height: 1.6;
     }
-    .hero-meta {
-        font-size: 12px;
-        color: #99F6E4;
-        margin-top: 15px;
+    
+    /* Button Styles - Pure Icon Style (No Border) */
+    .stButton>button {
+        background-color: transparent !important;
+        color: inherit !important;
+        border: none !important;
+        border-radius: 0px !important;
+        padding: 0px !important;
+        font-size: 20px !important;
+        line-height: 1 !important;
+        transition: transform 0.2s;
+        height: auto !important;
+        min-height: 0px !important;
+        box-shadow: none !important;
     }
-
-    /* Standard News Card */
-    .news-card {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 16px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        transition: transform 0.2s, box-shadow 0.2s;
+    .stButton>button:hover {
+        background-color: transparent !important;
+        color: inherit !important;
+        border: none !important;
+        transform: scale(1.2);
     }
-    .news-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        border-color: #0D9488;
+    .stButton>button:active {
+        transform: scale(0.95);
+        background-color: transparent !important;
     }
-    .news-thumb {
-        width: 100%;
-        height: 150px;
-        object-fit: cover;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        background-color: #F1F5F9;
+    .stButton>button:focus {
+        box-shadow: none !important;
+        outline: none !important;
     }
-    .news-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #0F172A !important;
-        text-decoration: none;
-        line-height: 1.4;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+    .stButton>button p {
+         line-height: normal;
     }
-    .news-title:hover { color: #0D9488 !important; }
-    .news-summary {
-        font-size: 13px;
-        color: #475569;
-        margin-top: 8px;
-        line-height: 1.5;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+    
+    .stButton {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
-    .category-tag {
-        background-color: #CCFBF1;
-        color: #0F766E;
-        font-size: 11px;
-        font-weight: 600;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-block;
+    
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
     }
-    .date-tag { font-size: 11px; color: #94A3B8; margin-left: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
-# Header Section
-st.markdown("""
-<div class="dashboard-header">
-    <div class="main-title">🏥 Healthcare Market Intelligence</div>
-    <div class="sub-title">Automated AI Market Monitoring & Strategic Competitive Brief</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Control & Filter Bar
-f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.5, 2, 2, 2, 1.5])
+# Top Control Bar (Filters)
+st.markdown("### 🔍 Filters & Settings")
+f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
 with f_col1:
     lang_opt = st.selectbox("🌐 Language", ["Korean", "English"], index=0)
     use_english = (lang_opt == "English")
 with f_col2:
-    min_date = df['published_date'].min() if 'published_date' in df.columns else None
-    max_date = df['published_date'].max() if 'published_date' in df.columns else None
-    date_range = st.date_input("📅 Date Range", [min_date, max_date]) if min_date else None
-    if isinstance(date_range, list) and len(date_range) == 2:
-        start_date, end_date = date_range
+    if 'published_date' in df.columns:
+        min_date = df['published_date'].min()
+        max_date = df['published_date'].max()
+        date_range = st.date_input("📅 Date Range", [min_date, max_date])
+        if isinstance(date_range, list) and len(date_range) == 2:
+            start_date, end_date = date_range
+        else:
+            start_date, end_date = min_date, max_date
     else:
-        start_date, end_date = min_date, max_date
+        start_date, end_date = None, None
 with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
     if not selected_categories: selected_categories = all_categories
+
+temp_mask = pd.Series([True] * len(df))
+if start_date and end_date:
+    temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date) & (df['category'].isin(selected_categories))
+df_filtered_step1 = df[temp_mask]
+
 with f_col4:
-    sort_opts = ["AI Relevance", "Latest Date", "Category"]
-    sort_mode = st.selectbox("📊 Sort By", sort_opts)
-with f_col5:
-    show_ai_only = st.checkbox("🤖 Top AI Only", value=True, help="Show AI Top 20 ranked articles")
-
-# Filter execution
-mask = (df['category'].isin(selected_categories))
-if start_date and end_date and 'published_date' in df.columns:
-    mask = mask & (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
-
-if show_ai_only and 'is_top20' in df.columns and df['is_top20'].any():
-    filtered_df = df[mask & (df['is_top20'] == True)].copy()
-else:
-    filtered_df = df[mask].copy()
-
-score_col = 'final_score' if 'final_score' in filtered_df.columns else ('lgbm_score' if 'lgbm_score' in filtered_df.columns else 'score_ag')
-if sort_mode == "AI Relevance" and score_col in filtered_df.columns:
-    filtered_df = filtered_df.sort_values(score_col, ascending=False)
-elif sort_mode == "Latest Date":
-    filtered_df = filtered_df.sort_values('published_date', ascending=False)
-elif sort_mode == "Category":
-    filtered_df = filtered_df.sort_values('category', ascending=True)
-
-# Default Fallback Images per Category
-FALLBACK_IMAGES = {
-    "Zuellig": "https://images.unsplash.com/photo-1586015555751-63c2305d2146?w=600&auto=format&fit=crop&q=60",
-    "Distribution": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=60",
-    "Client": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=60",
-    "BD": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&auto=format&fit=crop&q=60",
-    "General": "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&auto=format&fit=crop&q=60"
-}
-
-# ====================
-# 1. Hero / Featured Article Section
-# ====================
-if not filtered_df.empty:
-    # Identify the Top Featured Article (Priority: Top AI score + with valid image, or Top 1)
-    hero_candidates = filtered_df[filtered_df['image_url'].str.startswith('http', na=False)]
-    hero_row = hero_candidates.iloc[0] if not hero_candidates.empty else filtered_df.iloc[0]
-    
-    h_title = hero_row['title']
-    h_summary = hero_row.get('summary', '')
-    h_keywords = hero_row.get('keywords', '')
-    h_url = hero_row.get('url', '#')
-    h_date = str(hero_row.get('published_date', ''))
-    h_cat = hero_row.get('category', 'Featured')
-    h_img = hero_row.get('image_url', '') or FALLBACK_IMAGES.get(h_cat, FALLBACK_IMAGES["General"])
+    available_keywords = []
+    if 'keywords' in df_filtered_step1.columns:
+        available_keywords = sorted(df_filtered_step1['keywords'].astype(str).unique().tolist())
     
     if use_english:
-        h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
-        
-    st.markdown("### 🔥 This Week's Key Strategic Focus")
-    h_col1, h_col2 = st.columns([1.2, 2.2])
+        keyword_options = [KEYWORD_MAPPING.get(k, k) for k in available_keywords]
+        en_to_kr = {KEYWORD_MAPPING.get(k, k): k for k in available_keywords}
+    else:
+        keyword_options = available_keywords
     
-    with h_col1:
-        st.image(h_img, use_container_width=True)
-    with h_col2:
-        st.markdown(f"""
-        <div style="padding: 5px 10px;">
-            <span class="hero-badge">★ Top AI Strategic Pick ({h_cat})</span>
-            <div style="font-size: 22px; font-weight: 800; margin: 8px 0;">
-                <a href="{h_url}" target="_blank" style="color: #0F766E; text-decoration: none;">{h_title}</a>
-            </div>
-            <p style="font-size: 14px; color: #475569; line-height: 1.6;">{h_summary}</p>
-            <div style="font-size: 12px; color: #64748B; margin-top: 10px;">
-                📅 <b>{h_date}</b> | 🏷️ {h_keywords}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    selected_keywords_display = st.multiselect("🔑 Keyword", keyword_options, default=[])
+    if use_english:
+        selected_keywords = [en_to_kr.get(k, k) for k in selected_keywords_display]
+    else:
+        selected_keywords = selected_keywords_display
+with f_col5:
+    sort_opts = ["AI Relevance", "Latest Date", "Category", "Keyword"]
+    sort_mode = st.selectbox("📊 Sort By", sort_opts)
+with f_col6:
+    show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
+
+# Apply Final Filter
+mask = temp_mask
+if selected_keywords:
+    mask = mask & (df['keywords'].isin(selected_keywords))
+
+if show_ai_only and 'lgbm_score' in df.columns:
+    df_temp = df[mask]
+    score_col = 'final_score' if 'final_score' in df_temp.columns else 'lgbm_score'
+    if 'is_top20' in df_temp.columns and df_temp['is_top20'].any():
+        filtered_df = df_temp[df_temp['is_top20'] == True]
+    else:
+        VIP_KEYWORDS = [
+            'DKSH', 'GSK', 'MSD', '공동판매', '노바티스', '노보노디스크',
+            '라미실', '로슈', '릴리', '블루엠텍', '사노피', '암젠', '오가논',
+            '위고비', '쥴릭', '지오영', '코프로모션', '특허만료', '한독', '화이자', '메나리니'
+        ]
+        ai_threshold = 0.18
+        ai_candidates = df_temp[df_temp[score_col] >= ai_threshold]
+        top_ai = ai_candidates.nlargest(20, score_col)
+        vip_pattern = '|'.join(VIP_KEYWORDS)
+        has_vip = df_temp[
+            df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
+            df_temp['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
+        ]
+        top_vip = has_vip[has_vip[score_col] >= 0.01].nlargest(5, score_col)
+        filtered_df = pd.concat([top_ai, top_vip]).drop_duplicates(subset=['url'])
+else:
+    filtered_df = df[mask]
+
+# Sorting
+if sort_mode == "AI Relevance":
+    if 'final_score' in df.columns:
+        filtered_df = filtered_df.sort_values('final_score', ascending=False)
+    elif 'lgbm_score' in df.columns:
+        filtered_df = filtered_df.sort_values('lgbm_score', ascending=False)
+    elif 'score_ag' in df.columns:
+        filtered_df = filtered_df.sort_values('score_ag', ascending=False)
+elif sort_mode == "Category":
+    filtered_df = filtered_df.sort_values('category', ascending=True)
+elif sort_mode == "Keyword":
+     if 'keywords' in df.columns:
+        filtered_df = filtered_df.sort_values('keywords', ascending=True)
+else:
+    filtered_df = filtered_df.sort_values('published_date', ascending=False)
+
+st.markdown(f"**Total Articles:** {len(filtered_df)}")
+st.divider()
+
+# ==========================================
+# 🌟 [추가된 부분] 최상단 Today's Strategic Focus (썸네일 대표 기사 1개)
+# ==========================================
+if not filtered_df.empty:
+    hero_row = filtered_df.iloc[0]
+    h_title = hero_row['title']
+    h_summary = hero_row.get('summary', '')
+    h_date = hero_row.get('published_date', '')
+    h_keywords = hero_row.get('keywords', '')
+    h_url = hero_row.get('url', '#')
+    h_img = hero_row.get('image_url', '')
+    if not h_img or not str(h_img).startswith('http'):
+        h_img = "https://images.unsplash.com/photo-1586015555751-63c2305d2146?w=600&auto=format&fit=crop&q=60"
         
-        btn_col, _ = st.columns([1, 4])
-        with btn_col:
-            st.button("👍 Useful", key="hero_like", on_click=handle_like, args=(hero_row.to_dict(),))
-            
+    if use_english:
+        h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
+
+    st.markdown("""
+    <div style="margin-top: 10px; margin-bottom: 8px;">
+        <span style="font-size: 22px; font-weight: bold; color: #006666;">🔥 Today's Key Strategic Pick</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 썸네일과 원본 스타일 카드가 결합된 대표 기사
+    with st.container():
+        hc1, hc2, hc3 = st.columns([4, 11, 1])
+        with hc1:
+            st.image(h_img, use_container_width=True)
+        with hc2:
+            st.markdown(f'''
+            <div style="
+                background-color: #FFFFFF;
+                border-left: 6px solid #0ABAB5;
+                border-radius: 8px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                padding: 16px;
+                height: 100%;
+            ">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{h_url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{h_title}</a>
+                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {h_date} | {h_keywords}</span>
+                </div>
+                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {h_summary}
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+        with hc3:
+            st.button(
+                "👍🏻",
+                key="like_hero_" + str(hash(h_url)),
+                on_click=handle_like,
+                args=(hero_row.to_dict(),),
+                help="Good"
+            )
     st.divider()
 
-# ====================
-# 2. Category-based 2-Column Grid View
-# ====================
+# ==========================================
+# 📂 [기존 원본 그대로 복원] Category별 리스트 카드 뷰
+# ==========================================
 category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
-unique_cats = filtered_df['category'].dropna().unique()
-sorted_cats = [c for c in category_priority if c in unique_cats] + [c for c in unique_cats if c not in category_priority]
+unique_categories = filtered_df['category'].dropna().unique()
+sorted_categories = [cat for cat in category_priority if cat in unique_categories]
+sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
 
-for cat in sorted_cats:
+for cat in sorted_categories:
     cat_df = filtered_df[filtered_df['category'] == cat]
     if cat_df.empty: continue
-    
-    st.markdown(f"### 📂 {cat} <span style='font-size:15px; color:#64748B;'>({len(cat_df)} articles)</span>", unsafe_allow_html=True)
-    
-    # Render in 2 columns grid
-    rows = list(cat_df.iterrows())
-    for i in range(0, len(rows), 2):
-        g_col1, g_col2 = st.columns(2)
-        cols = [g_col1, g_col2]
         
-        for j in range(2):
-            if i + j < len(rows):
-                _, row = rows[i + j]
-                title = row['title']
-                summary = row.get('summary', '')
-                keywords = row.get('keywords', '')
-                url = row.get('url', '#')
-                date = str(row.get('published_date', ''))
-                img_url = row.get('image_url', '') or FALLBACK_IMAGES.get(cat, FALLBACK_IMAGES["General"])
-                
-                if use_english:
-                    title, summary, keywords = translate_article_batch(title, summary, keywords)
-                
-                with cols[j]:
-                    with st.container():
-                        card_c1, card_c2 = st.columns([1, 2])
-                        with card_c1:
-                            st.image(img_url, use_container_width=True)
-                        with card_c2:
-                            st.markdown(f"""
-                            <div>
-                                <span class="category-tag">{cat}</span>
-                                <span class="date-tag">{date}</span>
-                                <div style="margin-top: 6px;">
-                                    <a href="{url}" target="_blank" class="news-title">{title}</a>
-                                </div>
-                                <div class="news-summary">{summary}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            b1, _ = st.columns([1, 4])
-                            with b1:
-                                st.button("👍", key=f"like_{cat}_{i+j}_{hash(url)}", on_click=handle_like, args=(row.to_dict(),))
-                        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-    st.divider()
+    st.markdown(f"""
+    <div style="margin-top: 20px; padding-bottom: 5px;">
+        <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
+        <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    for _, row in cat_df.iterrows():
+        title = row['title']
+        summary = row.get('summary', '')
+        date = row.get('published_date', '')
+        keywords = row.get('keywords', '')
+        url = row.get('url', '#')
+        
+        if use_english:
+            title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
+            keywords = keywords_trans
+        
+        # 기존 원본 티파니 블루 리스트 카드 형태 100% 동일
+        c_card, c_btn = st.columns([15, 1])
+        with c_card:
+            st.markdown(f'''
+            <div style="
+                background-color: #FFFFFF;
+                border-left: 6px solid #0ABAB5;
+                border-radius: 8px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                padding: 20px;
+                margin-bottom: 15px;
+            ">
+                <div style="font-size: 16px; line-height: 1.5; color: #333;">
+                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
+                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
+                </div>
+                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                    {summary}
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+        
+        with c_btn:
+            st.button(
+                "👍🏻",
+                key="like_" + str(hash(url)),
+                on_click=handle_like,
+                args=(row.to_dict(),),
+                help="Good"
+            )
