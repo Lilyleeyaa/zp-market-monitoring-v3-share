@@ -1,8 +1,8 @@
 """
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
 - Credential 완전 제거
-- 최상단 금주의 AI 추천 기사 & BD 관점 추천 코멘트 (Gemini 기반)
-- 썸네일 제외 / 회사 고유 티파니 블루 테마 & 리스트 카드 뷰 100% 유지
+- 최상단 ✨ Weekly AI Highlight (컴팩트 카드)
+- 썸네일/BD코멘트 제외, 여백 최적화, 티파니 블루 테마 100% 유지
 """
 
 import streamlit as st
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Page configuration
 st.set_page_config(
-    page_title="Health Market Monitor",
+    page_title="Healthcare Market Monitor",
     page_icon="🏥",
     layout="wide"
 )
@@ -140,40 +140,6 @@ Output only the translated English text, no explanations."""
         return translated
     except Exception:
         return text
-
-# ====================
-# Gemini BD Insight Generation (Cached)
-# ====================
-@st.cache_data(show_spinner=False, ttl=86400)
-def generate_bd_comment(title, summary, keywords):
-    """BD(Business Development & Strategic Partnership) 관점 추천 코멘트 생성"""
-    if not title or not GENAI_API_KEY:
-        return "급여 등재 및 시장 진입 동향에 따른 유통·코프로모션 파트너십 기회 분석과 경쟁 구도 모니터링이 필요한 핵심 이슈입니다."
-    
-    prompt = f"""
-    당신은 헬스케어 유통 및 커머셜 솔루션 기업(Zuellig Pharma)의 사업개발(BD & Strategic Partnership) 분석가입니다.
-    아래 주요 기사를 검토하고, 'BD 관점에서 이 기사를 주목해야 하는 이유(파트너십/코프로모션 기회, 유통망 재편, 급여/약가 영향, 경쟁사 동향 등 비즈니스 임팩트)'를 2~3문장의 명확하고 전문적인 어조로 작성해 주세요.
-
-    [기사 정보]
-    - 제목: {title}
-    - 요약: {summary}
-    - 키워드: {keywords}
-
-    [작성 규칙]
-    1. 인사말이나 마크다운 서식 없이 바로 2~3문장의 핵심 코멘트만 반환하세요.
-    2. 전문적인 제약/BD 용어를 활용하여 실무적인 시사점을 명확히 짚어주세요.
-    """
-    try:
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        headers = {'Content-Type': 'application/json'}
-        resp = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
-        if resp.status_code == 200:
-            res_json = resp.json()
-            if 'candidates' in res_json and res_json['candidates']:
-                return res_json['candidates'][0]['content']['parts'][0]['text'].strip()
-    except Exception:
-        pass
-    return "신약 출시 및 시장 진입에 따른 유통망 확보와 코프로모션 파트너십 기회 선점 관점에서 모니터링이 필요한 주요 이슈입니다."
 
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 EXCLUDED_KEYWORDS = [
@@ -519,7 +485,7 @@ st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
 # ==========================================
-# 🌟 최상단 금주의 AI 추천 기사 (BD 관점 추천 코멘트 카드)
+# 🌟 최상단 ✨ Weekly AI Highlight (컴팩트 카드)
 # ==========================================
 if not filtered_df.empty:
     hero_row = filtered_df.iloc[0]
@@ -529,21 +495,15 @@ if not filtered_df.empty:
     h_keywords = hero_row.get('keywords', '')
     h_url = hero_row.get('url', '#')
     
-    # Generate BD Strategic Insight
-    bd_comment = generate_bd_comment(h_title, h_summary, h_keywords)
-    
     if use_english:
         h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
-        if bd_comment:
-            bd_comment = translate_text(bd_comment, target='en')
 
     st.markdown("""
     <div style="margin-top: 10px; margin-bottom: 8px;">
-        <span style="font-size: 22px; font-weight: bold; color: #006666;">🔥 금주의 AI 추천 기사 (Strategic Focus)</span>
+        <span style="font-size: 20px; font-weight: bold; color: #006666;">✨ Weekly AI Highlight</span>
     </div>
     """, unsafe_allow_html=True)
     
-    # Highlight Card (No Thumbnail / Full Width)
     c_card, c_btn = st.columns([15, 1])
     with c_card:
         st.markdown(f'''
@@ -551,17 +511,17 @@ if not filtered_df.empty:
             background-color: #FFFFFF;
             border-left: 6px solid #008080;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 102, 102, 0.08);
-            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 102, 102, 0.08);
+            padding: 16px 20px;
             margin-bottom: 8px;
         ">
             <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                <span style="background-color: #E0F2F1; color: #00695C; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; margin-right: 6px;">★ Top Pick</span>
-                <a href="{h_url}" target="_blank" style="font-size: 19px; font-weight: bold; text-decoration: none; color: #008080;">{h_title}</a>
+                <span style="background-color: #E0F2F1; color: #00695C; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-right: 6px;">Top Pick</span>
+                <a href="{h_url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{h_title}</a>
                 <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {h_date} | {h_keywords}</span>
             </div>
-            <div style="font-size: 14px; margin-top: 12px; color: #333; line-height: 1.6; background-color: #F8FBFA; padding: 12px; border-radius: 6px; border-left: 3px solid #0ABAB5;">
-                <b style="color: #006666;">💡 BD 관점 추천 코멘트:</b><br>{bd_comment}
+            <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
+                {h_summary}
             </div>
         </div>
         ''', unsafe_allow_html=True)
@@ -574,19 +534,17 @@ if not filtered_df.empty:
             help="Good"
         )
     
-    # Collapsible Share Box (Admin / Personal Copy Tool)
-    share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Strategic Brief]
+    # 미니멀 복사용 접힘 메뉴 (...)
+    share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Weekly Strategic Brief]
 
-🔥 금주의 AI 추천 기사
+✨ Weekly AI Highlight:
 "{h_title}"
+- {h_summary[:120]}...
 
-💡 BD 관점 추천 코멘트:
-{bd_comment}
-
-👉 전체 Top 20 및 카테고리별 동향 바로가기 (로그인 불필요):
+👉 전체 Top 20 및 상세 분석 바로가기:
 https://healthcare-market-monitoring.streamlit.app"""
 
-    with st.expander("📤 공유용 텍스트"):
+    with st.expander("..."):
         st.code(share_brief, language="markdown")
         
     st.divider()
