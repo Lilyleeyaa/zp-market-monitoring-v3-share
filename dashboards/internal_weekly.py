@@ -1,8 +1,10 @@
 """
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
 - Credential 완전 제거
-- 최상단 ✨ Weekly AI Highlight (컴팩트 카드)
-- 썸네일/BD코멘트 제외, 여백 최적화, 티파니 블루 테마 100% 유지
+- 최상단 ✨ Weekly AI Highlight (컴팩트 카드 뷰)
+- 번역 파싱 버그 수정 & 영문 모드 완벽 연동
+- 공유용 미니멀 메뉴 (...) 내 키워드 포함 및 다국어 자동 전환
+- 기존 회사 고유 티파니 블루 테마 & 리스트 뷰 100% 유지
 """
 
 import streamlit as st
@@ -236,16 +238,21 @@ def translate_article_batch(title, summary, keywords):
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
+    
     t_title, t_summary, t_keywords = title, summary, keywords
     try:
         lines = result_text.split('\n')
         for line in lines:
-            if line.startswith("Title:") or line.startswith("Title :"):
-                t_title = line.split(":", 1)[1].strip()
-            elif line.startswith("Summary:") or line.startswith("Summary :"):
-                t_summary = line.split(":", 1)[1].strip()
-            elif line.startswith("Keywords:") or line.startswith("Keywords :"):
-                t_keywords = line.split(":", 1)[1].strip()
+            line_str = line.strip()
+            # Title / 제목 파싱
+            if re.match(r'^(Title|제목)\s*:', line_str, re.IGNORECASE):
+                t_title = re.sub(r'^(Title|제목)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
+            # Summary / 요약 파싱
+            elif re.match(r'^(Summary|요약)\s*:', line_str, re.IGNORECASE):
+                t_summary = re.sub(r'^(Summary|요약)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
+            # Keywords / 키워드 파싱
+            elif re.match(r'^(Keywords?|키워드)\s*:', line_str, re.IGNORECASE):
+                t_keywords = re.sub(r'^(Keywords?|키워드)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
     except Exception:
         pass
     return t_title, t_summary, t_keywords
@@ -294,7 +301,7 @@ if df.empty:
     st.stop()
 
 # ====================
-# Main Layout (기존 원본 Tiffany Blue CSS 그대로 복원)
+# Main Layout (기존 원본 Tiffany Blue CSS 100% 복원)
 # ====================
 st.markdown("""
 <style>
@@ -485,7 +492,7 @@ st.markdown(f"**Total Articles:** {len(filtered_df)}")
 st.divider()
 
 # ==========================================
-# 🌟 최상단 ✨ Weekly AI Highlight (컴팩트 카드)
+# 🌟 최상단 ✨ Weekly AI Highlight (컴팩트 카드 뷰)
 # ==========================================
 if not filtered_df.empty:
     hero_row = filtered_df.iloc[0]
@@ -534,11 +541,21 @@ if not filtered_df.empty:
             help="Good"
         )
     
-    # 미니멀 복사용 접힘 메뉴 (...)
-    share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Weekly Strategic Brief]
+    # 미니멀 복사용 접힘 메뉴 (...) - 키워드 포함 및 영문 자동 전환
+    if use_english:
+        share_brief = f"""🏥 [Healthcare Market Intelligence - Weekly Strategic Brief]
 
 ✨ Weekly AI Highlight:
-"{h_title}"
+"{h_title}" | {h_keywords}
+- {h_summary[:120]}...
+
+👉 Access full Top 20 & detailed analysis:
+https://healthcare-market-monitoring.streamlit.app"""
+    else:
+        share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Weekly Strategic Brief]
+
+✨ Weekly AI Highlight:
+"{h_title}" | {h_keywords}
 - {h_summary[:120]}...
 
 👉 전체 Top 20 및 상세 분석 바로가기:
