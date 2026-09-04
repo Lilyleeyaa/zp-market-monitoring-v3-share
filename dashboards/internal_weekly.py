@@ -1,7 +1,10 @@
 """
-Internal Weekly Dashboard - 내부용 (경쟁사 포함)
-V2 Design & Filter Logic Restoration (Exact Replica + Feb 06 Fix)
+Internal Weekly Dashboard - Healthcare Market Monitoring (V3.1 Visual Edition)
+- Credential removed for frictionless access
+- Hero (Featured) Article & Thumbnail Grid UI
+- Category-specific visual badging & Fallback image support
 """
+
 import streamlit as st
 import pandas as pd
 import sys
@@ -16,30 +19,20 @@ import pytz
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.simple_auth import authenticate_internal
-
 # Page configuration
 st.set_page_config(
-    page_title="Health Market Monitor",
+    page_title="Healthcare Market Monitor",
     page_icon="🏥",
     layout="wide"
 )
 
-# Removed custom CSS due to rendering issues
-
-# Title (V2 Style)
-st.title("🏥 Healthcare Market Monitoring")
-st.markdown("Automated news monitoring & analysis system")
-
-# 인증 (내부 전용)
-email = authenticate_internal()
-
-# GitHub Token을 session_state에 캐시 (인증과 동일한 경로로 로드)
+# ====================
+# GitHub Token for Feedback Logging (Non-blocking)
+# ====================
 if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
     _gh_token = None
     _gh_repo = "Lilyleeyaa/zp-market-monitoring-v3-share"
     
-    # 1. load_auth_config() 경로 (인증과 동일 — 가장 안정적)
     try:
         from auth.simple_auth import load_auth_config
         _config = load_auth_config()
@@ -47,10 +40,9 @@ if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
             _gh_token = _config['GITHUB_TOKEN']
         if 'GITHUB_REPO' in _config:
             _gh_repo = _config['GITHUB_REPO']
-    except:
+    except Exception:
         pass
     
-    # 2. 못 찾았으면 st.secrets 직접 접근
     if not _gh_token:
         try:
             if "GITHUB_TOKEN" in st.secrets:
@@ -61,56 +53,27 @@ if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
                 _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
         except Exception:
             pass
-
-    # 3. 환경 변수 확인 (Streamlit Cloud 환경 변수 등)
+            
     if not _gh_token:
         _gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("github_token")
     
     st.session_state['gh_token'] = _gh_token or ""
     st.session_state['gh_repo'] = _gh_repo
 
-    
-# Add version toast to confirm update
-st.toast("Updated Code Loaded (v3.0.5)", icon="✅")
-
 # ====================
-# Translation Components (V2)
+# Translation & Glossary
 # ====================
 EXTRA_GLOSSARY = {
-    "데일리팜": "Daily Pharm",
-    "약사공론": "Yaksagongron",
-    "메디파나": "Medipana",
-    "의학신문": "Medical Times",
-    "청년의사": "Doctor's News",
-    "뉴스1": "News1",
-    "뉴시스": "Newsis",
-    "처방권 진입": "Entry into Prescription Market",
-    "처방권": "Prescription Market",
-    "급여 확대": "Reimbursement Expansion",
-    "급여": "Reimbursement",
-    "비급여": "Non-Reimbursement",
-    "약가 인하": "Price Cut",
-    "약가": "Drug Price",
-    "제네릭": "Generic",
-    "오리지널": "Original",
-    "품절": "Out of Stock",
-    "공급부족": "Supply Shortage",
-    "공급중단": "Supply Disruption",
-    "임상": "Clinical Trial",
-    "허가": "Approval",
-    "식약처": "MFDS",
-    "심평원": "HIRA",
-    "건보공단": "NHIS",
-    "앱글리스": "Ebglyss",
-    "엡글리스": "Ebglyss",
-    "상급종합병원": "Tertiary General Hospital",
-    "건기식": "Health Functional Food",
-    "프리필드": "Pre-filled",
-    "니코틴엘": "Nicotinell",
-    "파슬로덱스": "Faslodex",
-    "닥터레디": "Dr. Reddy's",
-    "HK이노엔": "HK InnoN",
-    "포시가": "Forxiga",
+    "데일리팜": "Daily Pharm", "약사공론": "Yaksagongron", "메디파나": "Medipana",
+    "의학신문": "Medical Times", "청년의사": "Doctor's News", "뉴스1": "News1", "뉴시스": "Newsis",
+    "처방권 진입": "Entry into Prescription Market", "처방권": "Prescription Market",
+    "급여 확대": "Reimbursement Expansion", "급여": "Reimbursement", "비급여": "Non-Reimbursement",
+    "약가 인하": "Price Cut", "약가": "Drug Price", "제네릭": "Generic", "오리지널": "Original",
+    "품절": "Out of Stock", "공급부족": "Supply Shortage", "공급중단": "Supply Disruption",
+    "임상": "Clinical Trial", "허가": "Approval", "식약처": "MFDS", "심평원": "HIRA", "건보공단": "NHIS",
+    "앱글리스": "Ebglyss", "엡글리스": "Ebglyss", "상급종합병원": "Tertiary General Hospital",
+    "건기식": "Health Functional Food", "프리필드": "Pre-filled", "니코틴엘": "Nicotinell",
+    "파슬로덱스": "Faslodex", "닥터레디": "Dr. Reddy's", "HK이노엔": "HK InnoN", "포시가": "Forxiga",
 }
 
 KEYWORD_MAPPING = {
@@ -125,58 +88,33 @@ KEYWORD_MAPPING = {
     "공급중단": "Supply Disruption", "공급부족": "Supply Shortage", "품절": "Out of Stock", "품귀": "Shortage",
 }
 
-# ====================
-# Filter Logic Definitions (Global)
-# ====================
-# Configure Gemini API (Direct REST API for Python 3.8 compatibility)
-# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
-# User Request: Use Gemini API (Paid Plan) - Prioritize over Google Translate
 GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
 if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
     GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
-
-# Fallback: Removed hardcoded key for security
-if not GENAI_API_KEY:
-    pass # API calls will fail gracefully or use fallback logic
-
-
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
 def translate_text(text, target='en'):
     if not text: return ""
-    
-    # 1. Try Gemini API first (High Quality) with Retry Logic
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # Construct explicit prompt with glossary context
             full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
             glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+            prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
+Rules:
+1. Maintain professional industry terminology.
+2. Use the specific glossary below for strict term matching:
+{glossary_context}
+
+Text to translate:
+"{text}"
+
+Output only the translated English text, no explanations."""
             
-            prompt = f"""
-            You are a professional pharmaceutical translator. 
-            Translate the following Korean text to English.
-            
-            Rules:
-            1. Maintain professional industry terminology.
-            2. Use the specific glossary below for strict term matching:
-            {glossary_context}
-            
-            Text to translate:
-            "{text}"
-            
-            Output only the translated English text, no explanations.
-            """
-            
-            payload = {
-                "contents": [{
-                    "parts": [{"text": prompt}]
-                }]
-            }
-            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
             headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
             
             if response.status_code == 200:
                 result = response.json()
@@ -184,17 +122,11 @@ def translate_text(text, target='en'):
                     return result['candidates'][0]['content']['parts'][0]['text'].strip()
             elif response.status_code == 429:
                 if attempt < max_retries - 1:
-                    time.sleep(2) # Wait 2s before retry
+                    time.sleep(2)
                     continue
-            else:
-                print(f"[Gemini API Error] {response.status_code}: {response.text}")
-                break 
-                
-        except Exception as e:
-            print(f"[Gemini Exception] {e}")
+        except Exception:
             break
             
-    # 2. Fallback: deep_translator with glossary pre-substitution
     try:
         from deep_translator import GoogleTranslator
         full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
@@ -203,183 +135,15 @@ def translate_text(text, target='en'):
         for kr_term in sorted_terms:
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        import re
-        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
-        return translated
+        return GoogleTranslator(source='ko', target=target).translate(processed_text)
     except:
         return text
 
-INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
-
-EXCLUDED_KEYWORDS = [
-    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", 
-    "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
-    "부동산", "아파트", "전세", "매매", "청약", "건설", 
-    "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
-    "주가", "주식", "목표주가", "특징주", "급등",
-    "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
-    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강",
-    "채용", "신입사원", "공채", "원서접수", "고양이",
-    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴", "낙태", "살인", "의료진", "구속", "선고", "알테오젠"
-]
-
-GENERIC_KEYWORDS = ["계약", "M&A", "인수", "합병", "투자", "제휴", "CJ"]
-PHARMA_CONTEXT_KEYWORDS = ["제약", "바이오", "신약", "임상", "헬스케어", "의료", "병원", "약국", "치료제", "백신", "진단", "물류", "유통", "공급"]
-
-def is_noise_article(row):
-    # Check Title + Summary + Content (Body)
-    text = str(row['title']) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
-    
-    # 1. Check Explicit Exclusions
-    for exc in EXCLUDED_KEYWORDS:
-        if exc in text:
-            return True
-            
-    # 2. Homonym Check: "제약" (Constraint vs Pharma)
-    if "제약" in text:
-        if any(x in text for x in ["시간 제약", "공간 제약", "물리적 제약", "발전 제약", "활동 제약"]):
-            if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS if pk != "제약"):
-                return True
-
-    # 3. Generic Keyword Context Check
-    row_kws = str(row.get('keywords', ''))
-    if row_kws:
-        matched_gen = [gk for gk in GENERIC_KEYWORDS if gk in row_kws]
-        if matched_gen:
-             if not any(pk in text for pk in PHARMA_CONTEXT_KEYWORDS):
-                 return True
-                 
-    # 4. Specific Distribution Exclusion
-    if str(row.get('category')) == 'Distribution':
-        if '도이치뱅크' in text:
-            return True
-            
-    return False
-
-def has_internal_keyword(row_keywords):
-    if pd.isna(row_keywords) or row_keywords == '':
-        return False
-    row_k_list = str(row_keywords).split(',') 
-    for k in row_k_list:
-        if k.strip() in INTERNAL_KEYWORDS:
-            return True
-    return False
-
-# Duplicate translation logic removed. Using the function defined above.
-
-def handle_like(row_dict):
-    """
-    on_click callback for thumbs-up button.
-    Executes BEFORE Streamlit rerun, so the click is never silently dropped.
-    """
-    try:
-        # User requested to hide error messages and just show "Saved!"
-        # even if GITHUB_TOKEN is missing or API fails.
-        save_feedback(row_dict, 1)
-    except Exception:
-        pass
-    st.toast("Saved!", icon="👍")
-
-def save_feedback(row, label):
-    """
-    Save feedback to GitHub repo via REST API (persistent across Streamlit Cloud reboots).
-    Appends to data/labels/feedback_log.csv with url as merge key.
-    label: 1 = Like (reward), 0 = Dislike
-    """
-    import base64
-    from datetime import datetime
-    import pytz
-    
-    try:
-        gh_token = st.session_state.get('gh_token', '')
-        gh_repo = st.session_state.get('gh_repo') or 'Lilyleeyaa/zp-market-monitoring-v3-share'
-        
-        file_path = "data/labels/feedback_log.csv"
-        
-        # Prepare feedback row (use csv module for proper quoting)
-        import csv, io
-        c_url = str(row.get('url', '')).strip()
-        c_title = str(row.get('title', '')).replace("\n", " ").strip()
-        c_category = str(row.get('category', '')).strip()
-        c_keywords = str(row.get('keywords', '')).strip()
-        c_score_ag = str(row.get('score_ag', '')).strip()
-        
-        # Apply KST timezone
-        kst = pytz.timezone('Asia/Seoul')
-        feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
-        
-        buf = io.StringIO()
-        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
-        writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
-        new_line = buf.getvalue().rstrip("\r\n")
-        
-        # 1. Save locally first
-        import os
-        local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "labels")
-        os.makedirs(local_dir, exist_ok=True)
-        local_path = os.path.join(local_dir, "feedback_log.csv")
-        try:
-            if not os.path.exists(local_path):
-                with open(local_path, "w", encoding="utf-8-sig") as f:
-                    f.write("feedback_date,url,title,category,keywords,score_ag,reward\n")
-            with open(local_path, "a", encoding="utf-8-sig") as f:
-                f.write(new_line + "\n")
-            print(f"[OK] Feedback saved locally: {c_title[:40]}...")
-        except Exception as e:
-            print(f"[WARN] Could not save feedback locally: {e}")
-            
-        if not gh_token:
-            return  # Run locally without GitHub sync if token is missing
-        
-        # GitHub API: Get existing file (or create new)
-        api_url = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
-        headers = {
-            "Authorization": f"Bearer {gh_token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        resp = requests.get(api_url, headers=headers)
-        
-        if resp.status_code == 200:
-            # File exists — append to it
-            file_data = resp.json()
-            existing_content = base64.b64decode(file_data["content"]).decode("utf-8")
-            updated_content = existing_content.rstrip("\n") + "\n" + new_line + "\n"
-            sha = file_data["sha"]
-        else:
-            # File doesn't exist — create with header
-            header = "feedback_date,url,title,category,keywords,score_ag,reward"
-            updated_content = header + "\n" + new_line + "\n"
-            sha = None
-        
-        # Commit to GitHub
-        payload = {
-            "message": f"Feedback: {c_title[:40]}... ({feedback_date})",
-            "content": base64.b64encode(updated_content.encode("utf-8")).decode("utf-8"),
-            "branch": "main"
-        }
-        if sha:
-            payload["sha"] = sha
-        
-        put_resp = requests.put(api_url, headers=headers, json=payload)
-        
-        if put_resp.status_code in [200, 201]:
-            print(f"[OK] Feedback saved to GitHub: {c_title[:40]}...")
-        else:
-            raise RuntimeError(f"GitHub API {put_resp.status_code}: {put_resp.text[:300]}")
-            
-    except RuntimeError:
-        raise  # Re-raise to show in toast
-    except Exception as e:
-        raise RuntimeError(f"save_feedback error: {e}")
-
 @st.cache_data(show_spinner=False, ttl=3600)
-def translate_article_batch(title, summary, keywords):  # Cache v8
+def translate_article_batch(title, summary, keywords):
     if not title and not summary: return title, summary, keywords
     combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
     result_text = translate_text(combined_text)
-    
     t_title, t_summary, t_keywords = title, summary, keywords
     try:
         lines = result_text.split('\n')
@@ -390,377 +154,409 @@ def translate_article_batch(title, summary, keywords):  # Cache v8
                 t_summary = line.split(":", 1)[1].strip()
             elif line.startswith("Keywords:") or line.startswith("Keywords :"):
                 t_keywords = line.split(":", 1)[1].strip()
-    except:
+    except Exception:
         pass
     return t_title, t_summary, t_keywords
 
 # ====================
-# Data Loading (V3 Logic with Strict Filter)
+# Feedback & Data Handling
 # ====================
-def get_weekly_date_range():
-    # Dynamic Date Range based on Data
-    # Default to today if no data, but will be overridden by data
-    today = datetime.now().date()
-    start_date = today - timedelta(days=7)
-    return start_date, today
+def handle_like(row_dict):
+    try:
+        save_feedback(row_dict, 1)
+    except Exception:
+        pass
+    st.toast("Saved to Feedback Log!", icon="👍")
+
+def save_feedback(row, label):
+    import base64, csv, io
+    try:
+        gh_token = st.session_state.get('gh_token', '')
+        gh_repo = st.session_state.get('gh_repo') or 'Lilyleeyaa/zp-market-monitoring-v3-share'
+        
+        c_url = str(row.get('url', '')).strip()
+        c_title = str(row.get('title', '')).replace("\n", " ").strip()
+        c_category = str(row.get('category', '')).strip()
+        c_keywords = str(row.get('keywords', '')).strip()
+        c_score_ag = str(row.get('score_ag', '')).strip()
+        
+        kst = pytz.timezone('Asia/Seoul')
+        feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
+        
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
+        new_line = buf.getvalue().rstrip("\r\n")
+        
+        # Local append
+        local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "labels")
+        os.makedirs(local_dir, exist_ok=True)
+        local_path = os.path.join(local_dir, "feedback_log.csv")
+        if not os.path.exists(local_path):
+            with open(local_path, "w", encoding="utf-8-sig") as f:
+                f.write("feedback_date,url,title,category,keywords,score_ag,reward\n")
+        with open(local_path, "a", encoding="utf-8-sig") as f:
+            f.write(new_line + "\n")
+            
+        if not gh_token:
+            return
+            
+        api_url = f"https://api.github.com/repos/{gh_repo}/contents/data/labels/feedback_log.csv"
+        headers = {"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github.v3+json"}
+        resp = requests.get(api_url, headers=headers)
+        if resp.status_code == 200:
+            file_data = resp.json()
+            existing = base64.b64decode(file_data["content"]).decode("utf-8")
+            updated = existing.rstrip("\n") + "\n" + new_line + "\n"
+            sha = file_data["sha"]
+        else:
+            updated = "feedback_date,url,title,category,keywords,score_ag,reward\n" + new_line + "\n"
+            sha = None
+            
+        payload = {
+            "message": f"Feedback: {c_title[:40]}... ({feedback_date})",
+            "content": base64.b64encode(updated.encode("utf-8")).decode("utf-8"),
+            "branch": "main"
+        }
+        if sha: payload["sha"] = sha
+        requests.put(api_url, headers=headers, json=payload)
+    except Exception as e:
+        print(f"[Feedback Exception] {e}")
+
+INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
+EXCLUDED_KEYWORDS = [
+    "네이버 배송", "네이버 쇼핑", "네이버 페이", "도착보장", "쿠팡", "배달의민족", "요기요", "무신사", "컬리", "알리익스프레스", "테무",
+    "부동산", "아파트", "전세", "매매", "청약", "건설", "금리 인하", "주식 개장", "환율", "코스피", "코스닥", "증시", "상한가", 
+    "주가", "주식", "목표주가", "특징주", "급등", "여행", "호텔", "항공권", "예능", "드라마", "축구", "야구", "올림픽", "연예", "공연", "뮤지컬", "전시회", "관람",
+    "이차전지", "배터리", "전기차", "반도체", "디스플레이", "조선", "철강", "채용", "신입사원", "공채", "원서접수", "고양이",
+    "음식", "1인분", "문여는", "대전시장", "이뮨온시아", "에스바이오메딕스", "이지메디컴", "낙태", "살인", "의료진", "구속", "선고", "알테오젠"
+]
+
+def is_noise_article(row):
+    text = str(row.get('title', '')) + " " + str(row.get('summary', '')) + " " + str(row.get('content', ''))
+    for exc in EXCLUDED_KEYWORDS:
+        if exc in text: return True
+    return False
+
+def has_internal_keyword(row_keywords):
+    if pd.isna(row_keywords) or row_keywords == '': return False
+    return any(k.strip() in INTERNAL_KEYWORDS for k in str(row_keywords).split(','))
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_weekly_data():
     try:
         import glob
         base_dir = "data/articles_raw"
-        if not os.path.exists(base_dir):
-            base_dir = "../data/articles_raw"
-        
+        if not os.path.exists(base_dir): base_dir = "../data/articles_raw"
         ranked_files = sorted(glob.glob(os.path.join(base_dir, "articles_ranked_*.csv")))
-        if not ranked_files:
-            return pd.DataFrame(), {}, "No Files"
+        if not ranked_files: return pd.DataFrame(), {}, "No Files"
         
         latest_file = ranked_files[-1]
         df = pd.read_csv(latest_file, encoding='utf-8-sig') 
         
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
+        if 'category' not in df.columns: df['category'] = 'General'
+        if 'keywords' not in df.columns: df['keywords'] = ''
+        if 'image_url' not in df.columns: df['image_url'] = ''
         
-        if 'category' not in df.columns:
-            df['category'] = 'General'
-        
-        if 'keywords' not in df.columns:
-            df['keywords'] = ''
-            
-        # --- Apply Cached Filters Here (Performance Optimization) ---
-        # If the file is 'AI Ranked' and has 'is_top20', we trust those 20 regardless of secondary filters
-        # This prevents the 20 -> 13 drop reported by the user.
         if 'is_top20' in df.columns and df['is_top20'].any():
-            # Keep all is_top20 articles, and for the rest, apply strict filters
             top20_df = df[df['is_top20'] == True]
             other_df = df[df['is_top20'] != True]
-            
-            # Apply filters to 'others'
             other_df['has_internal_kw'] = other_df['keywords'].apply(has_internal_keyword)
             other_df = other_df[other_df['has_internal_kw']]
             if not other_df.empty:
                 other_df['is_noise'] = other_df.apply(is_noise_article, axis=1)
                 other_df = other_df[~other_df['is_noise']]
-            
             df = pd.concat([top20_df, other_df]).drop_duplicates(subset=['url'])
         else:
-            # Traditional filtering for non-ranked data
             df['has_internal_kw'] = df['keywords'].apply(has_internal_keyword)
             df = df[df['has_internal_kw']]
-            
-            # 2. Noise Filter
             if not df.empty:
                 df['is_noise'] = df.apply(is_noise_article, axis=1)
                 df = df[~df['is_noise']]
-            
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
         return pd.DataFrame(), None, str(e)
 
 df, filename, file_type = load_weekly_data()
 
-if filename:
-    if file_type == "AI Ranked":
-         st.toast(f"Loaded: {filename} (AI Ranked)", icon="🤖")
-    else:
-         st.toast(f"Loaded: {filename} (Raw Data)", icon="📂")
-elif file_type and "None" not in str(file_type): 
-    st.error(f"Error loading data: {file_type}")
-
 if df.empty:
-    st.warning("No data found. Please run the crawler first.")
+    st.warning("⚠️ 수집된 데이터가 없습니다. 크롤러를 실행해 주세요.")
     st.stop()
 
-# Internal Keyword Strict Filter & Noise Filter applied inside load_weekly_data for caching
-
-
 # ====================
-# Main Layout (V2 Style)
+# Visual Styling (Modern CSS)
 # ====================
 st.markdown("""
 <style>
-    /* Global Background & Font */
-    .stApp {
-        background-color: #F0F8F8; /* Very Light Teal/Grey */
+    .stApp { background-color: #F8FAFB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    
+    /* Header Area */
+    .dashboard-header {
+        padding: 10px 0 20px 0;
+        border-bottom: 2px solid #E2E8F0;
+        margin-bottom: 25px;
     }
+    .main-title { font-size: 28px; font-weight: 800; color: #0D5C75; letter-spacing: -0.5px; }
+    .sub-title { font-size: 14px; color: #64748B; margin-top: 4px; }
     
-    /* Header/Title */
-    h1 {
-        color: #006666 !important; /* Deep Teal */
+    /* Hero Featured Card */
+    .hero-container {
+        background: linear-gradient(135deg, #0F766E 0%, #0D5C75 100%);
+        border-radius: 16px;
+        padding: 24px;
+        color: #FFFFFF;
+        box-shadow: 0 10px 25px -5px rgba(13, 92, 117, 0.25);
+        margin-bottom: 30px;
+        transition: transform 0.2s ease;
     }
-    
-    /* Article Card Styles */
-    /* Article Card Styling matches container below */
-    /* .article-card removed (Styling applied via stVerticalBlockBorderWrapper) */
-    
-    .article-title {
-        font-size: 18px;
-        font-weight: bold;
-        color: #008080; /* Teal */
+    .hero-badge {
+        background-color: #F59E0B;
+        color: #FFFFFF;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        display: inline-block;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .hero-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #FFFFFF !important;
         text-decoration: none;
+        line-height: 1.4;
     }
-    .article-title:hover {
-        color: #0ABAB5; /* Tiffany Blue on Hover */
-        text_decoration: underline;
-    }
-    
-    .article-meta {
-        font-size: 12px;
-        color: #888;
-    }
-    
-    .category-badge {
-        background-color: #E0F2F1; /* Light Teal background */
-        color: #00695C; /* Dark Teal text */
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 500;
-        margin-left: 5px;
-    }
-
-    .article-summary {
+    .hero-title:hover { text-decoration: underline; }
+    .hero-summary {
         font-size: 14px;
-        color: #444;
-        margin-top: 8px;
+        color: #E2E8F0;
+        margin-top: 12px;
         line-height: 1.6;
     }
-    
-    /* Button Styles */
-    /* Button Styles - Ghost/Icon Style */
-    /* Button Styles - Pure Icon Style (No Border) */
-    .stButton>button {
-        background-color: transparent !important;
-        color: inherit !important;
-        border: none !important;
-        border-radius: 0px !important;
-        padding: 0px !important;
-        font-size: 20px !important;
-        line-height: 1 !important;
-        transition: transform 0.2s;
-        height: auto !important;
-        min-height: 0px !important;
-        box-shadow: none !important;
+    .hero-meta {
+        font-size: 12px;
+        color: #99F6E4;
+        margin-top: 15px;
     }
-    .stButton>button:hover {
-        background-color: transparent !important;
-        color: inherit !important;
-        border: none !important;
-        transform: scale(1.2);
+
+    /* Standard News Card */
+    .news-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 16px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-    .stButton>button:active {
-        transform: scale(0.95);
-        background-color: transparent !important;
+    .news-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-color: #0D9488;
     }
-    .stButton>button:focus {
-        box-shadow: none !important;
-        outline: none !important;
+    .news-thumb {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        background-color: #F1F5F9;
     }
-    .stButton>button p {
-         line-height: normal;
+    .news-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #0F172A !important;
+        text-decoration: none;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
-    
-    /* Remove white box wrapper around button */
-    .stButton {
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    .news-title:hover { color: #0D9488 !important; }
+    .news-summary {
+        font-size: 13px;
+        color: #475569;
+        margin-top: 8px;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
-    
-    /* Also remove any Streamlit container wrapper styling around the button column */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        padding: 0 !important;
+    .category-tag {
+        background-color: #CCFBF1;
+        color: #0F766E;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
     }
+    .date-tag { font-size: 11px; color: #94A3B8; margin-left: 6px; }
+</style>
 """, unsafe_allow_html=True)
 
-# Noise Cleanup Logic moved to global scope and applied in cached loader
+# Header Section
+st.markdown("""
+<div class="dashboard-header">
+    <div class="main-title">🏥 Healthcare Market Intelligence</div>
+    <div class="sub-title">Automated AI Market Monitoring & Strategic Competitive Brief</div>
+</div>
+""", unsafe_allow_html=True)
 
-
-
-# Top Control Bar (Language & Filters)
-st.markdown("### 🔍 Filters & Settings")
-
-f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
-
+# Control & Filter Bar
+f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.5, 2, 2, 2, 1.5])
 with f_col1:
     lang_opt = st.selectbox("🌐 Language", ["Korean", "English"], index=0)
     use_english = (lang_opt == "English")
-
 with f_col2:
-    if 'published_date' in df.columns:
-        min_date = df['published_date'].min()
-        max_date = df['published_date'].max()
-        date_range = st.date_input("📅 Date Range", [min_date, max_date])
-        if isinstance(date_range, list) and len(date_range) == 2:
-            start_date, end_date = date_range
-        else:
-            start_date, end_date = min_date, max_date
+    min_date = df['published_date'].min() if 'published_date' in df.columns else None
+    max_date = df['published_date'].max() if 'published_date' in df.columns else None
+    date_range = st.date_input("📅 Date Range", [min_date, max_date]) if min_date else None
+    if isinstance(date_range, list) and len(date_range) == 2:
+        start_date, end_date = date_range
     else:
-        start_date, end_date = None, None
-
+        start_date, end_date = min_date, max_date
 with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
-    if not selected_categories: 
-        selected_categories = all_categories
-
-# Dynamic Keyword Filter
-temp_mask = pd.Series([True] * len(df))
-if start_date and end_date:
-    temp_mask = (df['published_date'] >= start_date) & (df['published_date'] <= end_date) & (df['category'].isin(selected_categories))
-
-df_filtered_step1 = df[temp_mask]
-
+    if not selected_categories: selected_categories = all_categories
 with f_col4:
-    available_keywords = []
-    if 'keywords' in df_filtered_step1.columns:
-        available_keywords = sorted(df_filtered_step1['keywords'].astype(str).unique().tolist())
-    
-    if use_english:
-        keyword_options = [KEYWORD_MAPPING.get(k, k) for k in available_keywords]
-        en_to_kr = {KEYWORD_MAPPING.get(k, k): k for k in available_keywords}
-    else:
-        keyword_options = available_keywords
-    
-    selected_keywords_display = st.multiselect("🔑 Keyword", keyword_options, default=[])
-    
-    if use_english:
-        selected_keywords = [en_to_kr.get(k, k) for k in selected_keywords_display]
-    else:
-        selected_keywords = selected_keywords_display
-
-with f_col5:
-    sort_opts = ["AI Relevance", "Latest Date", "Category", "Keyword"]
+    sort_opts = ["AI Relevance", "Latest Date", "Category"]
     sort_mode = st.selectbox("📊 Sort By", sort_opts)
+with f_col5:
+    show_ai_only = st.checkbox("🤖 Top AI Only", value=True, help="Show AI Top 20 ranked articles")
 
-with f_col6:
-    show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
+# Filter execution
+mask = (df['category'].isin(selected_categories))
+if start_date and end_date and 'published_date' in df.columns:
+    mask = mask & (df['published_date'] >= start_date) & (df['published_date'] <= end_date)
 
-# --- Apply Final Filter ---
-mask = temp_mask
-if selected_keywords:
-    mask = mask & (df['keywords'].isin(selected_keywords))
-
-if show_ai_only and 'lgbm_score' in df.columns:
-    df_temp = df[mask]
-    score_col = 'final_score' if 'final_score' in df_temp.columns else 'lgbm_score'
-    
-    # Prefer is_top20 flag produced by rank_articles.py.
-    # rank_articles already does category balancing + obesity cap,
-    # so we trust it rather than re-ranking independently here.
-    if 'is_top20' in df_temp.columns and df_temp['is_top20'].any():
-        filtered_df = df_temp[df_temp['is_top20'] == True]
-    else:
-        # Fallback (when file has no is_top20 column)
-        VIP_KEYWORDS = [
-            'DKSH', 'GSK', 'MSD', '공동판매', '노바티스', '노보노디스크',
-            '라미실', '로슈', '릴리', '블루엠텍', '사노피', '암젠', '오가논',
-            '위고비', '쥴릭', '지오영', '코프로모션', '특허만료', '한독', '화이자',
-            '메나리니'
-        ]
-        ai_threshold = 0.18
-        ai_candidates = df_temp[df_temp[score_col] >= ai_threshold]
-        top_ai = ai_candidates.nlargest(20, score_col)
-        vip_pattern = '|'.join(VIP_KEYWORDS)
-        has_vip = df_temp[
-            df_temp['title'].str.contains(vip_pattern, case=False, na=False) |
-            df_temp['summary'].fillna('').str.contains(vip_pattern, case=False, na=False)
-        ]
-        top_vip = has_vip[has_vip[score_col] >= 0.01].nlargest(5, score_col)
-        filtered_df = pd.concat([top_ai, top_vip]).drop_duplicates(subset=['url'])
+if show_ai_only and 'is_top20' in df.columns and df['is_top20'].any():
+    filtered_df = df[mask & (df['is_top20'] == True)].copy()
 else:
-    filtered_df = df[mask]
+    filtered_df = df[mask].copy()
 
-# Sorting
-if sort_mode == "AI Relevance":
-    if 'final_score' in df.columns:
-        filtered_df = filtered_df.sort_values('final_score', ascending=False)
-    elif 'lgbm_score' in df.columns:
-        filtered_df = filtered_df.sort_values('lgbm_score', ascending=False)
-    elif 'score_ag' in df.columns:
-        filtered_df = filtered_df.sort_values('score_ag', ascending=False)
+score_col = 'final_score' if 'final_score' in filtered_df.columns else ('lgbm_score' if 'lgbm_score' in filtered_df.columns else 'score_ag')
+if sort_mode == "AI Relevance" and score_col in filtered_df.columns:
+    filtered_df = filtered_df.sort_values(score_col, ascending=False)
+elif sort_mode == "Latest Date":
+    filtered_df = filtered_df.sort_values('published_date', ascending=False)
 elif sort_mode == "Category":
     filtered_df = filtered_df.sort_values('category', ascending=True)
-elif sort_mode == "Keyword":
-     if 'keywords' in df.columns:
-        filtered_df = filtered_df.sort_values('keywords', ascending=True)
-else:
-    filtered_df = filtered_df.sort_values('published_date', ascending=False)
 
-# Metrics
-st.markdown(f"**Total Articles:** {len(filtered_df)}")
-st.divider()
+# Default Fallback Images per Category
+FALLBACK_IMAGES = {
+    "Zuellig": "https://images.unsplash.com/photo-1586015555751-63c2305d2146?w=600&auto=format&fit=crop&q=60",
+    "Distribution": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=60",
+    "Client": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=60",
+    "BD": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&auto=format&fit=crop&q=60",
+    "General": "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&auto=format&fit=crop&q=60"
+}
 
-# Display Articles by Category
-# ============================
-# Priority: Zuellig -> Distribution -> Client -> BD -> Others
-category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
-
-unique_categories = filtered_df['category'].dropna().unique()
-sorted_categories = [cat for cat in category_priority if cat in unique_categories]
-sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
-
-for cat in sorted_categories:
-    cat_df = filtered_df[filtered_df['category'] == cat]
+# ====================
+# 1. Hero / Featured Article Section
+# ====================
+if not filtered_df.empty:
+    # Identify the Top Featured Article (Priority: Top AI score + with valid image, or Top 1)
+    hero_candidates = filtered_df[filtered_df['image_url'].str.startswith('http', na=False)]
+    hero_row = hero_candidates.iloc[0] if not hero_candidates.empty else filtered_df.iloc[0]
     
-    if cat_df.empty:
-        continue
-        
-    st.markdown(f"""
-    <div style="margin-top: 20px; padding-bottom: 5px;">
-        <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
-        <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
-    </div>
-    """, unsafe_allow_html=True)
+    h_title = hero_row['title']
+    h_summary = hero_row.get('summary', '')
+    h_keywords = hero_row.get('keywords', '')
+    h_url = hero_row.get('url', '#')
+    h_date = str(hero_row.get('published_date', ''))
+    h_cat = hero_row.get('category', 'Featured')
+    h_img = hero_row.get('image_url', '') or FALLBACK_IMAGES.get(h_cat, FALLBACK_IMAGES["General"])
     
-    for _, row in cat_df.iterrows():
-        title = row['title']
-        summary = row.get('summary', '')
-        date = row.get('published_date', '')
-        keywords = row.get('keywords', '')
-        url = row.get('url', '#')
+    if use_english:
+        h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
         
-        # Translate if needed (Restored)
-        if use_english:
-            title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
-            keywords = keywords_trans
-        
-        # Layout: Pure HTML Card (Inline Styles - Cannot be overridden by theme)
-        c_card, c_btn = st.columns([15, 1])
-        
-        with c_card:
-            st.markdown(f'''
-            <div style="
-                background-color: #FFFFFF;
-                border-left: 6px solid #0ABAB5;
-                border-radius: 8px;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-                padding: 20px;
-                margin-bottom: 15px;
-            ">
-                <div style="font-size: 16px; line-height: 1.5; color: #333;">
-                    <a href="{url}" target="_blank" style="font-size: 18px; font-weight: bold; text-decoration: none; color: #008080;">{title}</a>
-                    <span style="color: #666; font-size: 12px; margin-left: 10px;"> | {date} | {keywords}</span>
-                </div>
-                <div style="font-size: 14px; margin-top: 8px; color: #555; line-height: 1.6;">
-                    {summary}
-                </div>
+    st.markdown("### 🔥 This Week's Key Strategic Focus")
+    h_col1, h_col2 = st.columns([1.2, 2.2])
+    
+    with h_col1:
+        st.image(h_img, use_container_width=True)
+    with h_col2:
+        st.markdown(f"""
+        <div style="padding: 5px 10px;">
+            <span class="hero-badge">★ Top AI Strategic Pick ({h_cat})</span>
+            <div style="font-size: 22px; font-weight: 800; margin: 8px 0;">
+                <a href="{h_url}" target="_blank" style="color: #0F766E; text-decoration: none;">{h_title}</a>
             </div>
-            ''', unsafe_allow_html=True)
+            <p style="font-size: 14px; color: #475569; line-height: 1.6;">{h_summary}</p>
+            <div style="font-size: 12px; color: #64748B; margin-top: 10px;">
+                📅 <b>{h_date}</b> | 🏷️ {h_keywords}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        with c_btn:
-            # on_click callback fires BEFORE Streamlit rerun,
-            # so the click is guaranteed to be processed every time.
-            st.button(
-                "👍🏻",
-                key="like_" + str(hash(url)),
-                on_click=handle_like,
-                args=(row.to_dict(),),
-                help="Good"
-            )
+        btn_col, _ = st.columns([1, 4])
+        with btn_col:
+            st.button("👍 Useful", key="hero_like", on_click=handle_like, args=(hero_row.to_dict(),))
+            
+    st.divider()
 
+# ====================
+# 2. Category-based 2-Column Grid View
+# ====================
+category_priority = ['Zuellig', 'Distribution', 'Client', 'BD']
+unique_cats = filtered_df['category'].dropna().unique()
+sorted_cats = [c for c in category_priority if c in unique_cats] + [c for c in unique_cats if c not in category_priority]
 
+for cat in sorted_cats:
+    cat_df = filtered_df[filtered_df['category'] == cat]
+    if cat_df.empty: continue
+    
+    st.markdown(f"### 📂 {cat} <span style='font-size:15px; color:#64748B;'>({len(cat_df)} articles)</span>", unsafe_allow_html=True)
+    
+    # Render in 2 columns grid
+    rows = list(cat_df.iterrows())
+    for i in range(0, len(rows), 2):
+        g_col1, g_col2 = st.columns(2)
+        cols = [g_col1, g_col2]
+        
+        for j in range(2):
+            if i + j < len(rows):
+                _, row = rows[i + j]
+                title = row['title']
+                summary = row.get('summary', '')
+                keywords = row.get('keywords', '')
+                url = row.get('url', '#')
+                date = str(row.get('published_date', ''))
+                img_url = row.get('image_url', '') or FALLBACK_IMAGES.get(cat, FALLBACK_IMAGES["General"])
+                
+                if use_english:
+                    title, summary, keywords = translate_article_batch(title, summary, keywords)
+                
+                with cols[j]:
+                    with st.container():
+                        card_c1, card_c2 = st.columns([1, 2])
+                        with card_c1:
+                            st.image(img_url, use_container_width=True)
+                        with card_c2:
+                            st.markdown(f"""
+                            <div>
+                                <span class="category-tag">{cat}</span>
+                                <span class="date-tag">{date}</span>
+                                <div style="margin-top: 6px;">
+                                    <a href="{url}" target="_blank" class="news-title">{title}</a>
+                                </div>
+                                <div class="news-summary">{summary}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            b1, _ = st.columns([1, 4])
+                            with b1:
+                                st.button("👍", key=f"like_{cat}_{i+j}_{hash(url)}", on_click=handle_like, args=(row.to_dict(),))
+                        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+    st.divider()
