@@ -368,7 +368,7 @@ if not filtered_df.empty:
 - {h_summary[:120]}...
 
 👉 Access full Top 20 & detailed analysis:
-https://zp-market-client.streamlit.app"""
+https://healthcare-market-monitoring-bd.streamlit.app/"""
     else:
         share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Weekly Strategic Brief]
 
@@ -377,7 +377,7 @@ https://zp-market-client.streamlit.app"""
 - {h_summary[:120]}...
 
 👉 전체 Top 20 및 상세 분석 바로가기:
-https://zp-market-client.streamlit.app"""
+https://healthcare-market-monitoring-bd.streamlit.app/"""
 
     with st.expander("..."):
         st.code(share_brief, language="markdown")
