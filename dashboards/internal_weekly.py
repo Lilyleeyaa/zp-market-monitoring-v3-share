@@ -98,14 +98,23 @@ if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
 
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
 
+# ==========================================
+# 🌐 [수정본] 완벽한 다국어 번역 컴포넌트 
+# ==========================================
+
 def translate_text(text, target='en'):
-    if not text: return ""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-            prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
+    if not text or not isinstance(text, str) or text.strip() == "": 
+        return ""
+    
+    # 1차 번역 시도: Gemini API 사용
+    if GENAI_API_KEY:
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+                glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+                prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
+
 Rules:
 1. Maintain professional industry terminology.
 2. Use the specific glossary below for strict term matching:
@@ -115,32 +124,46 @@ Text to translate:
 "{text}"
 
 Output only the translated English text, no explanations."""
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
-            if response.status_code == 200:
-                result = response.json()
-                if 'candidates' in result and result['candidates']:
-                    return result['candidates'][0]['content']['parts'][0]['text'].strip()
-            elif response.status_code == 429:
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-        except Exception:
-            break
-            
+                
+                payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'candidates' in result and result['candidates']:
+                        translated_result = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                        if translated_result:
+                            return translated_result
+                elif response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        time.sleep(1.5)
+                        continue
+            except Exception:
+                break
+
+    # 2차 번역 백업 (Gemini 실패 혹은 API 없을 때): deep-translator 안정 구동
     try:
         from deep_translator import GoogleTranslator
         full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
         processed_text = text
+        
+        # 글자 수 초과 방지 안전망 (최대 4,000자 제한)
+        processed_text = processed_text[:4000]
+        
+        # 용어 사전(Glossary) 매핑 사전 처리
         sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
         for kr_term in sorted_terms:
             if kr_term in processed_text:
                 processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
+                
+        # 번역기 실행
         translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        # 특정 단어 대소문자 예외 처리 보정
         translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
         return translated
-    except Exception:
+    except Exception as e:
+        # 번역 실패 시 대시보드가 죽지 않고 한국어 원본이라도 띄우도록 완벽 방어
         return text
 
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
