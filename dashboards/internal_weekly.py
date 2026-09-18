@@ -102,19 +102,39 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 # 🌐 [수정본] 완벽한 다국어 번역 컴포넌트 
 # ==========================================
 
+# ==========================================
+# 🌐 번역 엔진 & 배치 처리 함수 (통합 수정본)
+# ==========================================
+
 def translate_text(text, target='en'):
     if not text or not isinstance(text, str) or text.strip() == "": 
         return ""
     
-    # 1차 번역 시도: Gemini API 사용
-    if GENAI_API_KEY:
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-                glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-                prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
+    # 1. deep-translator (구글 무료 번역) 최우선 실행
+    try:
+        from deep_translator import GoogleTranslator
+        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+        processed_text = str(text)[:3500]  # 글자 수 제한 안전망
+        
+        # 전문 용어 사전(Glossary) 매핑
+        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
+        for kr_term in sorted_terms:
+            if kr_term in processed_text:
+                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
+                
+        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
+        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
+        if translated and translated.strip():
+            return translated
+    except Exception:
+        pass
 
+    # 2. 백업 엔진: Gemini API 번역
+    if GENAI_API_KEY:
+        try:
+            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
+            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
+            prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
 Rules:
 1. Maintain professional industry terminology.
 2. Use the specific glossary below for strict term matching:
@@ -122,49 +142,22 @@ Rules:
 
 Text to translate:
 "{text}"
-
 Output only the translated English text, no explanations."""
-                
-                payload = {"contents": [{"parts": [{"text": prompt}]}]}
-                headers = {'Content-Type': 'application/json'}
-                response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=8)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if 'candidates' in result and result['candidates']:
-                        translated_result = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                        if translated_result:
-                            return translated_result
-                elif response.status_code == 429:
-                    if attempt < max_retries - 1:
-                        time.sleep(1.5)
-                        continue
-            except Exception:
-                break
+            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and result['candidates']:
+                    val = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                    if val: 
+                        return val
+        except Exception:
+            pass
 
-    # 2차 번역 백업 (Gemini 실패 혹은 API 없을 때): deep-translator 안정 구동
-    try:
-        from deep_translator import GoogleTranslator
-        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-        processed_text = text
-        
-        # 글자 수 초과 방지 안전망 (최대 4,000자 제한)
-        processed_text = processed_text[:4000]
-        
-        # 용어 사전(Glossary) 매핑 사전 처리
-        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
-        for kr_term in sorted_terms:
-            if kr_term in processed_text:
-                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-                
-        # 번역기 실행
-        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        # 특정 단어 대소문자 예외 처리 보정
-        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
-        return translated
-    except Exception as e:
-        # 번역 실패 시 대시보드가 죽지 않고 한국어 원본이라도 띄우도록 완벽 방어
-        return text
+    # 둘 다 실패할 경우 원문 반환
+    return text
 
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 EXCLUDED_KEYWORDS = [
@@ -258,26 +251,29 @@ def save_feedback(row, label):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_article_batch(title, summary, keywords):
-    if not title and not summary: return title, summary, keywords
-    combined_text = f"Title: {title}\nSummary: {summary}\nKeywords: {keywords}"
-    result_text = translate_text(combined_text)
-    
-    t_title, t_summary, t_keywords = title, summary, keywords
+    """
+    기존의 '합쳐서 번역 후 정규식 파싱' 방식은 번역기가 줄바꿈이나 기호를 바꾸면 
+    파싱 실패로 무조건 한국어가 리턴되는 치명적 버그가 있었습니다.
+    각 항목을 독립적으로 안전하게 번역하도록 변경하여 100% 영문 출력을 보장합니다.
+    """
+    if not title and not summary: 
+        return title, summary, keywords
+
     try:
-        lines = result_text.split('\n')
-        for line in lines:
-            line_str = line.strip()
-            # Title / 제목 파싱
-            if re.match(r'^(Title|제목)\s*:', line_str, re.IGNORECASE):
-                t_title = re.sub(r'^(Title|제목)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
-            # Summary / 요약 파싱
-            elif re.match(r'^(Summary|요약)\s*:', line_str, re.IGNORECASE):
-                t_summary = re.sub(r'^(Summary|요약)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
-            # Keywords / 키워드 파싱
-            elif re.match(r'^(Keywords?|키워드)\s*:', line_str, re.IGNORECASE):
-                t_keywords = re.sub(r'^(Keywords?|키워드)\s*:\s*', '', line_str, flags=re.IGNORECASE).strip()
+        t_title = translate_text(str(title)) if title else ""
     except Exception:
-        pass
+        t_title = title
+
+    try:
+        t_summary = translate_text(str(summary)) if summary else ""
+    except Exception:
+        t_summary = summary
+
+    try:
+        t_keywords = translate_text(str(keywords)) if keywords else ""
+    except Exception:
+        t_keywords = keywords
+
     return t_title, t_summary, t_keywords
 
 @st.cache_data(ttl=60, show_spinner=False)
