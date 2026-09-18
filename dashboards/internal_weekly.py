@@ -417,8 +417,14 @@ st.markdown("""
 st.markdown("### 🔍 Filters & Settings")
 f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
 with f_col1:
-    lang_opt = st.selectbox("🌐 Language", ["Korean", "English"], index=0)
-    use_english = (lang_opt == "English")
+    # key를 부여해서 선택값을 session_state에 보관하고, 변경 시 화면을 다시 그리도록 강제
+    lang_opt = st.selectbox(
+        "🌐 Language",
+        ["Korean", "English"],
+        key="app_language"  # <-- 이 key가 가장 중요합니다.
+    )
+    use_english = (st.session_state.app_language == "English")
+
 with f_col2:
     if 'published_date' in df.columns:
         min_date = df['published_date'].min()
