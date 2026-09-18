@@ -2,7 +2,8 @@
 Internal Weekly Dashboard - 내부용 (경쟁사 포함)
 - Credential 완전 제거
 - 최상단 ✨ Weekly AI Highlight (컴팩트 카드 뷰)
-- 번역 파싱 버그 수정 & 영문 모드 완벽 연동
+- 제미나이 API 및 Sleep 지연 완전 제거 -> 가볍고 빠른 Google 번역 단독 모드 가동
+- requests 기반 구글 직통 번역 & deep-translator 백업으로 패키지/할당량 오류 원천 차단
 - 공유용 미니멀 메뉴 (...) 내 키워드 포함 및 다국어 자동 전환
 - 기존 회사 고유 티파니 블루 테마 & 리스트 뷰 100% 유지
 """
@@ -15,6 +16,7 @@ import re
 import requests
 import json
 import time
+import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 
@@ -45,7 +47,7 @@ if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
             _gh_repo = _config['GITHUB_REPO']
     except Exception:
         pass
-    
+
     if not _gh_token:
         try:
             if "GITHUB_TOKEN" in st.secrets:
@@ -56,15 +58,15 @@ if 'gh_token' not in st.session_state or not st.session_state['gh_token']:
                 _gh_token = st.secrets["auth"]["GITHUB_TOKEN"]
         except Exception:
             pass
-            
+
     if not _gh_token:
         _gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("github_token")
-    
+
     st.session_state['gh_token'] = _gh_token or ""
     st.session_state['gh_repo'] = _gh_repo
 
 # ====================
-# Translation Components (V2)
+# Translation Components (V2) - Google Translate 단독 엔진
 # ====================
 EXTRA_GLOSSARY = {
     "데일리팜": "Daily Pharm", "약사공론": "Yaksagongron", "메디파나": "Medipana",
@@ -92,72 +94,54 @@ KEYWORD_MAPPING = {
     "공급중단": "Supply Disruption", "공급부족": "Supply Shortage", "품절": "Out of Stock", "품귀": "Shortage",
 }
 
-GENAI_API_KEY = os.getenv("GENAI_API_KEY") 
-if not GENAI_API_KEY and 'GENAI_API_KEY' in st.secrets:
-    GENAI_API_KEY = st.secrets["GENAI_API_KEY"]
-
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GENAI_API_KEY}"
-
-# ==========================================
-# 🌐 [수정본] 완벽한 다국어 번역 컴포넌트 
-# ==========================================
-
-# ==========================================
-# 🌐 번역 엔진 & 배치 처리 함수 (통합 수정본)
-# ==========================================
-
-def translate_text(text, target='en'):
-    if not text or not isinstance(text, str) or text.strip() == "": 
-        return ""
-    
-    # 1. deep-translator (구글 무료 번역) 최우선 실행
+def _translate_google_direct(text):
+    """라이브러리 없이 requests로 Google Translate 직접 호출 (할당량 제한 없이 가볍고 빠름)"""
     try:
-        from deep_translator import GoogleTranslator
-        full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-        processed_text = str(text)[:3500]  # 글자 수 제한 안전망
-        
-        # 전문 용어 사전(Glossary) 매핑
-        sorted_terms = sorted(full_glossary.keys(), key=len, reverse=True)
-        for kr_term in sorted_terms:
-            if kr_term in processed_text:
-                processed_text = processed_text.replace(kr_term, full_glossary[kr_term])
-                
-        translated = GoogleTranslator(source='ko', target=target).translate(processed_text)
-        translated = re.sub(r'nicotine\s*ll?', 'Nicotinell', translated, flags=re.IGNORECASE)
-        if translated and translated.strip():
-            return translated
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": "en",
+            "dt": "t",
+            "q": text[:3500]
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+        r = requests.get(url, params=params, headers=headers, timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
+                translated_parts = [part[0] for part in data[0] if part and len(part) > 0 and part[0]]
+                res = "".join(translated_parts).strip()
+                if res:
+                    return res
     except Exception:
         pass
 
-    # 2. 백업 엔진: Gemini API 번역
-    if GENAI_API_KEY:
-        try:
-            full_glossary = {**KEYWORD_MAPPING, **EXTRA_GLOSSARY}
-            glossary_context = "\n".join([f"- {k}: {v}" for k, v in full_glossary.items()])
-            prompt = f"""You are a professional pharmaceutical translator. Translate the following Korean text to English.
-Rules:
-1. Maintain professional industry terminology.
-2. Use the specific glossary below for strict term matching:
-{glossary_context}
+    # 백업: deep_translator
+    try:
+        from deep_translator import GoogleTranslator
+        res2 = GoogleTranslator(source='auto', target='en').translate(text[:3000])
+        if res2 and res2.strip():
+            return res2.strip()
+    except Exception:
+        pass
 
-Text to translate:
-"{text}"
-Output only the translated English text, no explanations."""
-            
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload), timeout=5)
-            if response.status_code == 200:
-                result = response.json()
-                if 'candidates' in result and result['candidates']:
-                    val = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                    if val: 
-                        return val
-        except Exception:
-            pass
-
-    # 둘 다 실패할 경우 원문 반환
     return text
+
+def translate_text(text, target='en'):
+    if not text:
+        return ""
+    text_str = str(text).strip()
+    if not text_str or text_str.lower() in ['nan', 'none', 'null']:
+        return ""
+
+    res = _translate_google_direct(text_str)
+    if res:
+        res = re.sub(r'nicotine\s*ll?', 'Nicotinell', res, flags=re.IGNORECASE)
+        return res
+    return text_str
 
 INTERNAL_KEYWORDS = list(KEYWORD_MAPPING.keys())
 EXCLUDED_KEYWORDS = [
@@ -210,12 +194,12 @@ def save_feedback(row, label):
         c_score_ag = str(row.get('score_ag', '')).strip()
         kst = pytz.timezone('Asia/Seoul')
         feedback_date = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
-        
+
         buf = io.StringIO()
         writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
         writer.writerow([feedback_date, c_url, c_title, c_category, c_keywords, c_score_ag, label])
         new_line = buf.getvalue().rstrip("\r\n")
-        
+
         local_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "labels")
         os.makedirs(local_dir, exist_ok=True)
         local_path = os.path.join(local_dir, "feedback_log.csv")
@@ -224,9 +208,9 @@ def save_feedback(row, label):
                 f.write("feedback_date,url,title,category,keywords,score_ag,reward\n")
         with open(local_path, "a", encoding="utf-8-sig") as f:
             f.write(new_line + "\n")
-            
+
         if not gh_token: return
-        
+
         api_url = f"https://api.github.com/repos/{gh_repo}/contents/data/labels/feedback_log.csv"
         headers = {"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github.v3+json"}
         resp = requests.get(api_url, headers=headers)
@@ -238,7 +222,7 @@ def save_feedback(row, label):
         else:
             updated = "feedback_date,url,title,category,keywords,score_ag,reward\n" + new_line + "\n"
             sha = None
-            
+
         payload = {
             "message": f"Feedback: {c_title[:40]}... ({feedback_date})",
             "content": base64.b64encode(updated.encode("utf-8")).decode("utf-8"),
@@ -249,13 +233,9 @@ def save_feedback(row, label):
     except Exception as e:
         print(f"[Feedback Exception] {e}")
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def translate_article_batch(title, summary, keywords):
-    """
-    기존의 '합쳐서 번역 후 정규식 파싱' 방식은 번역기가 줄바꿈이나 기호를 바꾸면 
-    파싱 실패로 무조건 한국어가 리턴되는 치명적 버그가 있었습니다.
-    각 항목을 독립적으로 안전하게 번역하도록 변경하여 100% 영문 출력을 보장합니다.
-    """
+# ⚠️ 이전의 잘못된 캐시를 강제 무효화하기 위해 함수명을 v3로 갱신
+@st.cache_data(show_spinner=False, ttl=7200)
+def translate_article_v3(title, summary, keywords):
     if not title and not summary: 
         return title, summary, keywords
 
@@ -284,15 +264,15 @@ def load_weekly_data():
         if not os.path.exists(base_dir): base_dir = "../data/articles_raw"
         ranked_files = sorted(glob.glob(os.path.join(base_dir, "articles_ranked_*.csv")))
         if not ranked_files: return pd.DataFrame(), {}, "No Files"
-        
+
         latest_file = ranked_files[-1]
         df = pd.read_csv(latest_file, encoding='utf-8-sig') 
-        
+
         if 'published_date' in df.columns:
             df['published_date'] = pd.to_datetime(df['published_date']).dt.date
         if 'category' not in df.columns: df['category'] = 'General'
         if 'keywords' not in df.columns: df['keywords'] = ''
-            
+
         if 'is_top20' in df.columns and df['is_top20'].any():
             top20_df = df[df['is_top20'] == True]
             other_df = df[df['is_top20'] != True]
@@ -308,13 +288,12 @@ def load_weekly_data():
             if not df.empty:
                 df['is_noise'] = df.apply(is_noise_article, axis=1)
                 df = df[~df['is_noise']]
-            
+
         return df, os.path.basename(latest_file), "AI Ranked"
     except Exception as e:
         return pd.DataFrame(), None, str(e)
 
 df, filename, file_type = load_weekly_data()
-
 if df.empty:
     st.warning("No data found. Please run the crawler first.")
     st.stop()
@@ -328,12 +307,12 @@ st.markdown("""
     .stApp {
         background-color: #F0F8F8; /* Very Light Teal/Grey */
     }
-    
+
     /* Header/Title */
     h1 {
         color: #006666 !important; /* Deep Teal */
     }
-    
+
     .article-title {
         font-size: 18px;
         font-weight: bold;
@@ -344,12 +323,12 @@ st.markdown("""
         color: #0ABAB5; /* Tiffany Blue on Hover */
         text-decoration: underline;
     }
-    
+
     .article-meta {
         font-size: 12px;
         color: #888;
     }
-    
+
     .category-badge {
         background-color: #E0F2F1; /* Light Teal background */
         color: #00695C; /* Dark Teal text */
@@ -365,7 +344,7 @@ st.markdown("""
         margin-top: 8px;
         line-height: 1.6;
     }
-    
+
     /* Button Styles - Pure Icon Style (No Border) */
     .stButton>button {
         background-color: transparent !important;
@@ -397,13 +376,13 @@ st.markdown("""
     .stButton>button p {
          line-height: normal;
     }
-    
+
     .stButton {
         background-color: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }
-    
+
     [data-testid="stVerticalBlockBorderWrapper"] {
         background-color: transparent !important;
         border: none !important;
@@ -417,11 +396,10 @@ st.markdown("""
 st.markdown("### 🔍 Filters & Settings")
 f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.5, 2, 2, 2, 2, 1.5])
 with f_col1:
-    # key를 부여해서 선택값을 session_state에 보관하고, 변경 시 화면을 다시 그리도록 강제
     lang_opt = st.selectbox(
         "🌐 Language",
         ["Korean", "English"],
-        key="app_language"  # <-- 이 key가 가장 중요합니다.
+        key="app_language"
     )
     use_english = (st.session_state.app_language == "English")
 
@@ -436,6 +414,7 @@ with f_col2:
             start_date, end_date = min_date, max_date
     else:
         start_date, end_date = None, None
+
 with f_col3:
     all_categories = sorted(df['category'].dropna().unique().tolist())
     selected_categories = st.multiselect("📂 Category", all_categories, default=[])
@@ -450,21 +429,23 @@ with f_col4:
     available_keywords = []
     if 'keywords' in df_filtered_step1.columns:
         available_keywords = sorted(df_filtered_step1['keywords'].astype(str).unique().tolist())
-    
+
     if use_english:
         keyword_options = [KEYWORD_MAPPING.get(k, k) for k in available_keywords]
         en_to_kr = {KEYWORD_MAPPING.get(k, k): k for k in available_keywords}
     else:
         keyword_options = available_keywords
-    
+
     selected_keywords_display = st.multiselect("🔑 Keyword", keyword_options, default=[])
     if use_english:
         selected_keywords = [en_to_kr.get(k, k) for k in selected_keywords_display]
     else:
         selected_keywords = selected_keywords_display
+
 with f_col5:
     sort_opts = ["AI Relevance", "Latest Date", "Category", "Keyword"]
     sort_mode = st.selectbox("📊 Sort By", sort_opts)
+
 with f_col6:
     show_ai_only = st.checkbox("🤖 AI Only", value=True, help="Show only AI recommended articles")
 
@@ -526,16 +507,16 @@ if not filtered_df.empty:
     h_date = str(hero_row.get('published_date', ''))
     h_keywords = hero_row.get('keywords', '')
     h_url = hero_row.get('url', '#')
-    
+
     if use_english:
-        h_title, h_summary, h_keywords = translate_article_batch(h_title, h_summary, h_keywords)
+        h_title, h_summary, h_keywords = translate_article_v3(h_title, h_summary, h_keywords)
 
     st.markdown("""
     <div style="margin-top: 10px; margin-bottom: 8px;">
         <span style="font-size: 20px; font-weight: bold; color: #006666;">✨ Weekly AI Highlight</span>
     </div>
     """, unsafe_allow_html=True)
-    
+
     c_card, c_btn = st.columns([15, 1])
     with c_card:
         st.markdown(f'''
@@ -565,30 +546,25 @@ if not filtered_df.empty:
             args=(hero_row.to_dict(),),
             help="Good"
         )
-    
+
     # 미니멀 복사용 접힘 메뉴 (...) - 키워드 포함 및 영문 자동 전환
     if use_english:
         share_brief = f"""🏥 [Healthcare Market Intelligence - Weekly Strategic Brief]
-
 ✨ Weekly AI Highlight:
 "{h_title}" | {h_keywords}
 - {h_summary[:120]}...
-
 👉 Access full Top 20 & detailed analysis:
 https://healthcare-market-monitoring.streamlit.app"""
     else:
         share_brief = f"""🏥 [주간 헬스케어 마켓 모니터링 - Weekly Strategic Brief]
-
 ✨ Weekly AI Highlight:
 "{h_title}" | {h_keywords}
 - {h_summary[:120]}...
-
 👉 전체 Top 20 및 상세 분석 바로가기:
 https://healthcare-market-monitoring.streamlit.app"""
-
     with st.expander("..."):
         st.code(share_brief, language="markdown")
-        
+
     st.divider()
 
 # ==========================================
@@ -602,25 +578,24 @@ sorted_categories += sorted([cat for cat in unique_categories if cat not in cate
 for cat in sorted_categories:
     cat_df = filtered_df[filtered_df['category'] == cat]
     if cat_df.empty: continue
-        
+
     st.markdown(f"""
     <div style="margin-top: 20px; padding-bottom: 5px;">
         <span style="font-size: 24px; font-weight: bold; color: #006666;">{cat}</span>
         <span style="font-size: 16px; color: #666; margin-left: 10px;">({len(cat_df)} articles)</span>
     </div>
     """, unsafe_allow_html=True)
-    
+
     for _, row in cat_df.iterrows():
         title = row['title']
         summary = row.get('summary', '')
         date = row.get('published_date', '')
         keywords = row.get('keywords', '')
         url = row.get('url', '#')
-        
+
         if use_english:
-            title, summary, keywords_trans = translate_article_batch(title, summary, keywords)
-            keywords = keywords_trans
-        
+            title, summary, keywords = translate_article_v3(title, summary, keywords)
+
         c_card, c_btn = st.columns([15, 1])
         with c_card:
             st.markdown(f'''
@@ -641,7 +616,7 @@ for cat in sorted_categories:
                 </div>
             </div>
             ''', unsafe_allow_html=True)
-        
+
         with c_btn:
             st.button(
                 "👍🏻",
