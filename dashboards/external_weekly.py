@@ -185,12 +185,52 @@ if df.empty:
     st.warning("표시할 뉴스가 없습니다.")
     st.stop()
 
-# ====================
-# Main Layout (기존 원본 Tiffany Blue CSS 100% 복원)
-# ====================
+# ==========================================================
+# 💡 [최종 수정] Main Layout (Tiffany Blue CSS 복원)
+# ==========================================================
 st.markdown("""
 <style>
-    /* ... CSS 코드는 동일하므로 생략 ... */
+    /* Global Background & Font */
+    .stApp {
+        background-color: #F0F8F8; /* Very Light Teal/Grey */
+    }
+    
+    /* Header/Title */
+    h1 {
+        color: #006666 !important; /* Deep Teal */
+    }
+    
+    .article-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #008080; /* Teal */
+        text-decoration: none;
+    }
+    .article-title:hover {
+        color: #0ABAB5; /* Tiffany Blue on Hover */
+        text-decoration: underline;
+    }
+    
+    .article-meta {
+        font-size: 12px;
+        color: #888;
+    }
+    
+    .category-badge {
+        background-color: #E0F2F1; /* Light Teal background */
+        color: #00695C; /* Dark Teal text */
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 5px;
+    }
+    .article-summary {
+        font-size: 14px;
+        color: #444;
+        margin-top: 8px;
+        line-height: 1.6;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -351,6 +391,7 @@ category_priority = ['Zuellig', 'Distribution', 'BD', 'Client']
 unique_categories = filtered_df['category'].dropna().unique()
 sorted_categories = [cat for cat in category_priority if cat in unique_categories]
 sorted_categories += sorted([cat for cat in unique_categories if cat not in category_priority])
+
 for category_name in sorted_categories:
     category_df = filtered_df[filtered_df['category'] == category_name]
     if category_df.empty: continue
