@@ -3,7 +3,7 @@ name: Weekly Crawl and Rank
 on:
   schedule:
     # 매주 금요일 06:00 KST (UTC 21:00 목요일)
-    - cron: '0 21 * * 4'
+    - cron: '23 21 * * 4'
   
   # 수동 실행 가능
   workflow_dispatch:
